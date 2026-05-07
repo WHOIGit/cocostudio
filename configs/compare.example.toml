@@ -1,0 +1,10 @@
+coco_a = "data/exports/source-a-coco.json"
+coco_b = "data/exports/source-b-coco.json"
+images_root = "data/images"
+
+report_dir = "data/compare/reports"
+diff_image_dir = "data/compare/annotated-diffs"
+
+# Prefer a stable image key when comparing across exports.
+image_key = "file_name"
+

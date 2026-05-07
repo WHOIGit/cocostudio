@@ -1,0 +1,29 @@
+# development
+__pycache__/
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# local config and secrets
+.env
+configs/*.local.*
+configs/*.secret.*
+
+# data and generated outputs
+data/*
+!data/.gitkeep
+
+# imagery and annotations accidentally created outside data/
+*.tif
+*.tiff
+*.jpg
+*.jpeg
+*.png
+*.json
+*.csv
+
+# keep checked-in config examples
+!configs/*.example.json
+!configs/*.example.toml
+
