@@ -28,7 +28,7 @@ clobber = true
 dry_run = false
 provenance = false
 
-[label_color]
-tooth = "lime"
-denticle = "dodgerblue"
-other = "violet"
+#[label_color]
+#tooth = "lime"
+#denticle = "dodgerblue"
+#other = "violet"

@@ -1,7 +1,0 @@
-{
-  "host": "https://labelstudio.example.org",
-  "token": "$LABELSTUDIO_API_TOKEN",
-  "project": 1,
-  "pk": "image"
-}
-

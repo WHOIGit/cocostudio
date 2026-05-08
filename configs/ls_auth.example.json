@@ -1,0 +1,23 @@
+{
+  "labelstudio": [
+    {
+      "host": "https://labelstudio.mysite.org",
+      "token": "LABELSTUDIO_API_TOKEN"
+    }
+  ],
+  "s3": [
+    {
+      "bucket": "MYBUCKET",
+      "endpoint_url": "http://s3.mysite.org",
+      "aws_access_key_id": "S3_ACCESS_KEY",
+      "aws_secret_access_key": "S3_SECRET_KEY"
+    }
+  ],
+  "ml_backend": [
+    {
+      "backend_url": "https://mlbackend.mysite.org/SAM2/",
+      "user": null,
+      "pass": null
+    }
+  ]
+}
