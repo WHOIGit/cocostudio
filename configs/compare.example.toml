@@ -1,10 +1,33 @@
 coco_a = "data/exports/source-a-coco.json"
 coco_b = "data/exports/source-b-coco.json"
-images_root = "data/images"
+name_a = "source-a"
+name_b = "source-b"
 
-report_dir = "data/compare/reports"
-diff_image_dir = "data/compare/annotated-diffs"
+image_root = "data/images"
+output = "data/compare/rendered/{FFID}.jpg"
 
-# Prefer a stable image key when comparing across exports.
 image_key = "file_name"
+ffid_field = "file_name"
 
+draw_bboxes = true
+mask_mode = "none"
+invert_masks = "none"
+
+# Format string fields include {CATEGORY}, {ROI}, {OBJ:05}, {OBJ_ID}, and
+# other annotation properties.
+text = false
+
+color_a = "cyan"
+color_b = "red"
+
+mask_alpha = 0.28
+line_width = 3
+
+clobber = false
+dry_run = false
+provenance = "data/logs/compare_render_{DATETIME}.json"
+
+[label_color]
+tooth = "lime"
+denticle = "dodgerblue"
+other = "violet"

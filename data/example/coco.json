@@ -1,0 +1,73 @@
+{
+  "info": {
+    "description": "Small bbox-only COCO example for coco-inspect",
+    "version": "1.0",
+    "date_created": "2026-05-08"
+  },
+  "licenses": [],
+  "categories": [
+    {
+      "id": 1,
+      "name": "tooth",
+      "supercategory": "ichthyolith"
+    },
+    {
+      "id": 2,
+      "name": "denticle",
+      "supercategory": "ichthyolith"
+    },
+    {
+      "id": 3,
+      "name": "other",
+      "supercategory": "ichthyolith"
+    }
+  ],
+  "images": [
+    {
+      "id": 1,
+      "file_name": "example_001.jpg",
+      "width": 640,
+      "height": 480
+    },
+    {
+      "id": 2,
+      "file_name": "example_002.jpg",
+      "width": 800,
+      "height": 600
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [50, 80, 120, 90],
+      "area": 10800,
+      "iscrowd": 0
+    },
+    {
+      "id": 2,
+      "image_id": 1,
+      "category_id": 2,
+      "bbox": [240, 150, 70, 65],
+      "area": 4550,
+      "iscrowd": 0
+    },
+    {
+      "id": 3,
+      "image_id": 2,
+      "category_id": 1,
+      "bbox": [100, 120, 95, 110],
+      "area": 10450,
+      "iscrowd": 0
+    },
+    {
+      "id": 4,
+      "image_id": 2,
+      "category_id": 3,
+      "bbox": [400, 300, 160, 140],
+      "area": 22400,
+      "iscrowd": 0
+    }
+  ]
+}

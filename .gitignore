@@ -13,6 +13,7 @@ configs/*.secret.*
 # data and generated outputs
 data/*
 !data/.gitkeep
+!data/example/
 
 # imagery and annotations accidentally created outside data/
 *.tif
@@ -26,4 +27,4 @@ data/*
 # keep checked-in config examples
 !configs/*.example.json
 !configs/*.example.toml
-
+!data/example/*.json

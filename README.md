@@ -91,56 +91,88 @@ summary with annotation totals, bbox/mask availability, and one count column per
 category.
 
 ```bash
-inspect data/exports/coco.json
-inspect data/exports/coco.json --info
-inspect data/exports/coco.json --schema
-inspect data/exports/coco.json --schema extras
-inspect data/exports/coco.json --sum
-inspect data/exports/coco.json --tablefmt simple
-inspect data/exports/coco.json -o data/inspect/coco.csv
+inspect data/example/coco.json
+inspect data/example/coco.json -o data/inspect/example-coco.csv
 ```
+
+### Column Options
+
+Column options only affect the default image summary table and `--sum`.
+
+- `--tablefmt FORMAT` selects the `tabulate` output format. Default: `github`.
+- `--no-dims` removes `width` and `height`.
+- `--no-meta` removes extra image metadata columns.
+- `--no-anno` removes all annotation-derived columns.
+- `--no-anno-types` removes only the `bbox` and `masks` columns.
+- `--no-cats` removes per-category count columns.
+
+```bash
+inspect data/example/coco.json --tablefmt simple
+inspect data/example/coco.json --no-dims
+inspect data/example/coco.json --no-meta
+inspect data/example/coco.json --no-anno
+inspect data/example/coco.json --no-anno-types
+inspect data/example/coco.json --no-cats
+```
+
+### Special Views
+
+Special views do not render the default image summary table. They are mutually
+exclusive.
+
+```bash 
+inspect data/example/coco.json --sum
+inspect data/example/coco.json --sum images
+inspect data/example/coco.json --sum annotations bbox masks tooth
+inspect data/example/coco.json --info
+inspect data/example/coco.json --schema
+inspect data/example/coco.json --schema extras
+inspect data/example/coco.json --segfmt
+inspect data/example/coco.json --images
+inspect data/example/coco.json --list
+inspect data/example/coco.json --labels
+inspect data/example/coco.json --categories
+```
+
+`--sum` prints a transposed field/value table for terminal output, with image
+count shown as `images`. If `--sum` is written to a `.csv` file, it stays as a
+single wide summary row. If one field is provided after `--sum`, only the raw
+numeric value is printed. If multiple fields are provided, they are rendered as
+a `field` / `value` table. Supported fields are `images`, `annotations`, `bbox`,
+`masks`, category IDs, category names, and `{category_id}:{label}`.
 
 `--info` prints the top-level COCO `info` object as a key/value table, flattening
 nested fields with dot notation.
 
 `--schema` prints the observed COCO key structure. Keys in `images`,
 `annotations`, `categories`, and `licenses` are counted across their parent
-lists; keys present in fewer records show their count. `--schema extras` shows
-only keys outside the built-in COCO standard-key lists. Schema output orders
-standard keys first, then non-standard scalar/list keys, then non-standard dict
-keys ordered by child-key count.
+lists; if a key is not present in every record, their count is shown. 
 
-`--sum` prints a transposed field/value table for terminal output, with image
-count shown as `images`. If `--sum` is written to a `.csv` file, it stays as a
-single wide summary row.
+`--schema extras` shows only keys outside the built-in COCO standard-key lists.
 
+`--segfmt` reports the segmentation format used by selected annotations:
+`polygon`, `rle`, or `rle-compressed`. If no selected annotations have masks, it
+prints `None`. If multiple segmentation formats are present, it prints a JSON
+object with counts for each format. Image and category filters are applied
+before computing this value.
+
+`--images` and `--list` are aliases. They print selected images as
+`{image_id:02}: {filename}`, one per line, with no header.
+
+`--labels` and `--categories` are aliases. They print selected categories as
+`{category_id:02}: {label}`, one per line, with no header. Category filters can
+be used to narrow the list.
+
+
+### Filtering 
 Image filters match COCO image ID, `file_name`, basename, or filename stem.
 Category filters match category ID or category name.
 
 ```bash
-inspect data/exports/coco.json --include FFID_A FFID_B
-inspect data/exports/coco.json --exclude FFID_A
-inspect data/exports/coco.json --include-category tooth
-inspect data/exports/coco.json --exclude-category junk
-```
-
-Column controls:
-
-```bash
-inspect data/exports/coco.json --no-dims
-inspect data/exports/coco.json --no-meta
-inspect data/exports/coco.json --no-anno
-inspect data/exports/coco.json --no-anno-types
-inspect data/exports/coco.json --no-cats
-```
-
-Line-list modes skip tabular output:
-
-```bash
-inspect data/exports/coco.json --images
-inspect data/exports/coco.json --list
-inspect data/exports/coco.json --categories
-inspect data/exports/coco.json --labels
+inspect data/example/coco.json --include 1 FFID_B FFID_C  # where image_id 1 is FFID_A, for example
+inspect data/example/coco.json --exclude FFID_A
+inspect data/example/coco.json --include-category tooth
+inspect data/example/coco.json --exclude-category junk 5  # where category_id 5 is "unlabeled", for example
 ```
 
 ## Planned Workflow
