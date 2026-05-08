@@ -139,7 +139,7 @@ count shown as `images`. If `--sum` is written to a `.csv` file, it stays as a
 single wide summary row. If one field is provided after `--sum`, only the raw
 numeric value is printed. If multiple fields are provided, they are rendered as
 a `field` / `value` table. Supported fields are `images`, `annotations`, `bbox`,
-`masks`, category IDs, category names, and `{category_id}:{label}`.
+`masks`, category IDs and category names.
 
 `--info` prints the top-level COCO `info` object as a key/value table, flattening
 nested fields with dot notation.
