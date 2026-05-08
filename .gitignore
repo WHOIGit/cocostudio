@@ -5,26 +5,14 @@ venv/
 .pytest_cache/
 *.egg-info/
 
-# local config and secrets
-.env
-configs/*.local.*
-configs/*.secret.*
-
 # data and generated outputs
 data/*
-!data/.gitkeep
 !data/example/
+data/example/compare-render
 
-# imagery and annotations accidentally created outside data/
-*.tif
-*.tiff
-*.jpg
-*.jpeg
-*.png
-*.json
-*.csv
+*.ppm
+# portable-pixelmap, in data/example
+# to be changed to actual small png for examples later
 
-# keep checked-in config examples
-!configs/*.example.json
-!configs/*.example.toml
-!data/example/*.json
+# secrets
+configs/ls_auth.json

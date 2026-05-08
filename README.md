@@ -20,8 +20,10 @@ This is an initial scaffold. The directory structure, Python packaging, local vi
 labelstudio-cycle-ff/
 ├── configs/
 │   ├── compare.example.toml
+│   ├── compare.automorph-sam2.toml
 │   └── labelstudio.example.json
 ├── data/
+│   └── example/
 ├── src/
 │   ├── common/
 │   ├── compare/
@@ -31,7 +33,8 @@ labelstudio-cycle-ff/
 └── README.md
 ```
 
-`data/` is for local inputs and generated outputs. Its contents are ignored by git except for `.gitkeep`.
+`data/` is for local inputs and generated outputs. Its contents are ignored by
+git except for small fixtures under `data/example/`.
 
 ## Installation
 
@@ -73,7 +76,8 @@ pip install -e /home/sbatchelder/Projects/labelstudio-tools
 
 Copy the example config files before putting real paths, project IDs, or tokens into them.
 
-- `configs/compare.example.toml` sketches the two COCO inputs and output locations for compare reports and annotated diff renders.
+- `configs/compare.example.toml` renders the bundled `data/example/coco_b.json` and `data/example/coco_c.json` fixtures.
+- `configs/compare.automorph-sam2.toml` configures the Automorph-vs-SAM2 tiny COCO render comparison.
 - `configs/labelstudio.example.json` matches the `labelstudio-tools` config style. Use environment-variable references such as `"$LABELSTUDIO_API_TOKEN"` for secrets.
 
 Local config and secret files should use names like:
@@ -91,8 +95,8 @@ summary with annotation totals, bbox/mask availability, and one count column per
 category.
 
 ```bash
-inspect data/example/coco.json
-inspect data/example/coco.json -o data/inspect/example-coco.csv
+inspect data/example/coco_a.json
+inspect data/example/coco_a.json -o data/inspect/example-coco.csv
 ```
 
 ### Column Options
@@ -107,12 +111,12 @@ Column options only affect the default image summary table and `--sum`.
 - `--no-cats` removes per-category count columns.
 
 ```bash
-inspect data/example/coco.json --tablefmt simple
-inspect data/example/coco.json --no-dims
-inspect data/example/coco.json --no-meta
-inspect data/example/coco.json --no-anno
-inspect data/example/coco.json --no-anno-types
-inspect data/example/coco.json --no-cats
+inspect data/example/coco_a.json --tablefmt simple
+inspect data/example/coco_a.json --no-dims
+inspect data/example/coco_a.json --no-meta
+inspect data/example/coco_a.json --no-anno
+inspect data/example/coco_a.json --no-anno-types
+inspect data/example/coco_a.json --no-cats
 ```
 
 ### Special Views
@@ -121,17 +125,17 @@ Special views do not render the default image summary table. They are mutually
 exclusive.
 
 ```bash 
-inspect data/example/coco.json --sum
-inspect data/example/coco.json --sum images
-inspect data/example/coco.json --sum annotations bbox masks tooth
-inspect data/example/coco.json --info
-inspect data/example/coco.json --schema
-inspect data/example/coco.json --schema extras
-inspect data/example/coco.json --segfmt
-inspect data/example/coco.json --images
-inspect data/example/coco.json --list
-inspect data/example/coco.json --labels
-inspect data/example/coco.json --categories
+inspect data/example/coco_a.json --sum
+inspect data/example/coco_a.json --sum images
+inspect data/example/coco_a.json --sum annotations bbox masks tooth
+inspect data/example/coco_a.json --info
+inspect data/example/coco_a.json --schema
+inspect data/example/coco_a.json --schema extras
+inspect data/example/coco_b.json --segfmt
+inspect data/example/coco_a.json --images
+inspect data/example/coco_a.json --list
+inspect data/example/coco_a.json --labels
+inspect data/example/coco_a.json --categories
 ```
 
 `--sum` prints a transposed field/value table for terminal output, with image
@@ -169,10 +173,10 @@ Image filters match COCO image ID, `file_name`, basename, or filename stem.
 Category filters match category ID or category name.
 
 ```bash
-inspect data/example/coco.json --include 1 FFID_B FFID_C  # where image_id 1 is FFID_A, for example
-inspect data/example/coco.json --exclude FFID_A
-inspect data/example/coco.json --include-category tooth
-inspect data/example/coco.json --exclude-category junk 5  # where category_id 5 is "unlabeled", for example
+inspect data/example/coco_a.json --include 1 example_002
+inspect data/example/coco_a.json --exclude example_001
+inspect data/example/coco_a.json --include-category tooth
+inspect data/example/coco_a.json --exclude-category other
 ```
 
 ## Planned Workflow
@@ -194,9 +198,13 @@ Initial outputs:
 Render all annotations from two COCO files onto each common fullframe:
 
 ```bash
-python -m compare.cli render \
-  -c configs/compare.example.toml \
-  --output "data/compare/rendered/{FFID}.jpg"
+python -m compare.cli render -c configs/compare.example.toml
+```
+
+Render the local Automorph/SAM2 tiny COCO comparison:
+
+```bash
+python -m compare.cli render -c configs/compare.automorph-sam2.toml
 ```
 
 ```bash
@@ -216,9 +224,9 @@ python -m compare.cli render \
 Useful filters:
 
 ```bash
-python -m compare.cli render -c configs/compare.example.toml --ffid-include FFID_A FFID_B
-python -m compare.cli render -c configs/compare.example.toml --image-index 1 2 3
-python -m compare.cli render -c configs/compare.example.toml --mask-mode fill --text "{CATEGORY} {OBJ:05}"
+python -m compare.cli render -c configs/compare.automorph-sam2.toml --ffid-include FFID_A FFID_B
+python -m compare.cli render -c configs/compare.automorph-sam2.toml --image-index 1 2 3
+python -m compare.cli render -c configs/compare.automorph-sam2.toml --mask-mode fill --text "{CATEGORY} {OBJ:05}"
 ```
 
 `render` maps image IDs between both COCO files at startup using `image_key`

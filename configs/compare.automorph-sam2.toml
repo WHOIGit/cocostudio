@@ -1,0 +1,38 @@
+# Render the cleanup-automorph Automorph and SAM2 tiny COCO exports together.
+coco_a = "data/from_cleanup/automorph-coco-tiny.json"
+coco_b = "data/from_cleanup/sam2-coco-tiny.json"
+name_a = "automorph"
+name_b = "sam2"
+
+image_root = "data/from_cleanup/images-quartersizejpg"
+output = "data/render/automorph-sam2-coco-tiny/{FFID}.jpg"
+
+image_key = "file_name"   # I think this is redundant
+ffid_field = "file_name"  # this should default to filename,
+                          # but be able to accept a different field from image entry,
+                          # incl. meta.ffid for instance
+
+draw_bboxes = true
+mask_mode = "none"  # bug where if one of them doesn't have masks
+invert_masks = "b"  # change to true, false, a/b/name
+
+# Format string fields include {CATEGORY}, {ROI}, {OBJ:05}, {OBJ_ID}, and
+# other annotation properties.
+# Should allow for coco_a/coco_b name as well, incase monochrome or [label_color] used
+text = "{OBJ:03}.{CATEGORY}"
+
+color_a = "cyan"
+color_b = "red"
+
+mask_alpha = 0.33
+line_width = 3
+
+clobber = true
+dry_run = false
+provenance = false
+
+# behavior vs color_a/color_b unclear/not helpful. should be mutually exclusive maybe?
+#[label_color]
+#tooth = "lime"
+#denticle = "dodgerblue"
+#other = "violet"

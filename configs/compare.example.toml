@@ -1,31 +1,32 @@
-coco_a = "data/exports/source-a-coco.json"
-coco_b = "data/exports/source-b-coco.json"
-name_a = "source-a"
-name_b = "source-b"
+# Render the bundled polygon-mask COCO examples together.
+coco_a = "data/example/coco_b.json"
+coco_b = "data/example/coco_c.json"
+name_a = "example-b"
+name_b = "example-c"
 
-image_root = "data/images"
-output = "data/compare/rendered/{FFID}.jpg"
+image_root = "data/example"
+output = "data/example/compare-render/{FFID}.jpg"
 
 image_key = "file_name"
 ffid_field = "file_name"
 
 draw_bboxes = true
-mask_mode = "none"
+mask_mode = "both"
 invert_masks = "none"
 
 # Format string fields include {CATEGORY}, {ROI}, {OBJ:05}, {OBJ_ID}, and
 # other annotation properties.
-text = false
+text = "{SOURCE}:{OBJ:02}.{CATEGORY}"
 
 color_a = "cyan"
 color_b = "red"
 
-mask_alpha = 0.28
-line_width = 3
+mask_alpha = 0.33
+line_width = 1
 
-clobber = false
+clobber = true
 dry_run = false
-provenance = "data/logs/compare_render_{DATETIME}.json"
+provenance = false
 
 [label_color]
 tooth = "lime"
