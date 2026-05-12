@@ -1,2 +1,1 @@
 """Reviewed annotation pull utilities."""
-

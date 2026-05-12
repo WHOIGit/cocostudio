@@ -6,13 +6,11 @@ venv/
 *.egg-info/
 
 # data and generated outputs
-data/*
-!data/example/
-data/example/compare-render
-
-*.ppm
-# portable-pixelmap, in data/example
-# to be changed to actual small png for examples later
+data/
 
 # secrets
+.env
 configs/ls_auth.json
+configs/ls_auth.toml
+configs/ls_auth.*.toml
+!configs/ls_auth.example.toml

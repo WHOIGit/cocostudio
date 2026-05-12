@@ -1,2 +1,0 @@
-"""COCO comparison utilities."""
-

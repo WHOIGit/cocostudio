@@ -3,25 +3,17 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sibert-labelstudio-cycle-ff"
+name = "cocostudio"
 version = "0.1.0"
-description = "Compare, push, and pull fullframe COCO annotations through Label Studio for Sibert 2026."
+description = "Push COCO predictions to Label Studio for correction and pull refined annotations back."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pillow",
-    "pycocotools",
-    "tabulate",
-    "tqdm",
+    #"coconut-crab @ git+https://github.com/WHOIGit/coconut-crab.git",
+    #"labelstudio-tools @ git+https://github.com/WHOIGit/labelstudio-tools.git",
 ]
-
-[project.scripts]
-inspect = "coco_inspect.cli:main"
 
 [project.optional-dependencies]
-labelstudio = [
-    "labelstudio-tools @ git+https://github.com/WHOIGit/labelstudio-tools.git",
-]
 dev = [
     "pytest",
 ]
@@ -29,9 +21,5 @@ dev = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = [
-    "coco_inspect",
-    "common",
-    "compare",
-    "pull",
-    "push",
+    "cocostudio",
 ]

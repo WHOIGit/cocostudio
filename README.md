@@ -1,240 +1,84 @@
-# Sibert-2026 Label Studio Cycle FF
+# cocostudio
 
-Utilities for cycling fullframe COCO annotations through Label Studio review.
-
-This project has three working areas:
-
-- `compare`: compare two COCO JSON files, starting with ROI counts, added/missing ROIs, label distributions, and annotated image renders that show differences for images common to both datasets.
-- `push`: upload a COCO file to a configured Label Studio project.
-- `pull`: pull reviewed annotations from a configured Label Studio project for downstream export and comparison.
-
-`src/common` holds shared config, COCO, filesystem, and Label Studio helper code as the implementation grows.
-
-## Status
-
-This is an initial scaffold. The directory structure, Python packaging, local virtualenv, and local git repo are initialized first; concrete compare/push/pull commands will be filled in as the workflow settles.
+Push COCO predictions to Label Studio for human correction, then pull the
+refined annotations back into a COCO file for comparison with the original
+using `coconut-crab`'s `coco-render-combo`.
 
 ## Layout
 
 ```text
-labelstudio-cycle-ff/
+cocostudio/
 ├── configs/
-│   ├── compare.example.toml
 │   ├── compare.automorph-sam2.toml
-│   └── labelstudio.example.json
+│   ├── ls_auth.example.toml
+│   └── ls_project.clean-sam2-automorph.toml
 ├── data/
-│   └── example/
+│   ├── from_cleanup -> ../cleanup-automorph/data/exports/coco
+│   └── render/
 ├── src/
-│   ├── common/
-│   ├── compare/
-│   ├── pull/
-│   └── push/
+│   └── cocostudio/
+│       ├── push.py
+│       └── pull.py
 ├── pyproject.toml
+├── reinstall_localdev.sh
 └── README.md
 ```
 
-`data/` is for local inputs and generated outputs. Its contents are ignored by
-git except for small fixtures under `data/example/`.
+`data/` is for local inputs, symlinks, and generated outputs. Its contents are
+ignored by git.
 
 ## Installation
 
-From this directory:
+Create and activate a virtualenv, then run the local dev reinstall script:
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+./reinstall_localdev.sh
 ```
 
-The base package currently depends on:
+This installs `coconut-crab`, `labelstudio-tools`, and this package as
+editable from their sibling directories. Re-run it any time you need to
+resync after changes to those packages' metadata.
 
-- `pillow`
-- `pycocotools`
-- `tqdm`
+## COCO Tools
 
-Label Studio integration will use `labelstudio-tools`.
+`coconut-crab` is installed by `reinstall_localdev.sh` and provides the
+`coco-inspect` and `coco-render-combo` commands.
 
-For the published GitHub install:
+Inspect a local cleanup export:
 
 ```bash
-pip install "labelstudio-tools @ git+https://github.com/WHOIGit/labelstudio-tools.git"
+coco-inspect data/from_cleanup/automorph-coco-tiny.json --sum
 ```
 
-For local development against the in-progress checkout:
+Render the Automorph/SAM2 comparison configured for this project:
 
 ```bash
-export PYTHONPATH=/home/sbatchelder/Projects/labelstudio-tools/src:$PYTHONPATH
+coco-render-combo -c configs/compare.automorph-sam2.toml
 ```
 
-or install it editable into this virtualenv:
-
-```bash
-pip install -e /home/sbatchelder/Projects/labelstudio-tools
-```
+The comparison config expects `data/from_cleanup` to point at the
+`cleanup-automorph` COCO export directory.
 
 ## Configuration
 
-Copy the example config files before putting real paths, project IDs, or tokens into them.
+Copy example config files before putting real paths, project IDs, or tokens into
+them.
 
-- `configs/compare.example.toml` renders the bundled `data/example/coco_b.json` and `data/example/coco_c.json` fixtures.
-- `configs/compare.automorph-sam2.toml` configures the Automorph-vs-SAM2 tiny COCO render comparison.
-- `configs/labelstudio.example.json` matches the `labelstudio-tools` config style. Use environment-variable references such as `"$LABELSTUDIO_API_TOKEN"` for secrets.
+- `configs/ls_auth.example.toml` shows the local auth/credential shape.
+- `configs/ls_project.clean-sam2-automorph.toml` configures the Label Studio
+  project.
+- `configs/compare.automorph-sam2.toml` configures the `coco-render-combo`
+  Automorph-vs-SAM2 output.
 
 Local config and secret files should use names like:
 
-- `configs/compare.local.toml`
-- `configs/labelstudio.local.json`
+- `configs/ls_auth.toml`
+- `configs/ls_auth.ichthyolith.toml`
 - `.env`
 
 These are ignored by git.
-
-## COCO Inspect
-
-The `inspect` command reads one COCO JSON file and prints a tabulated image
-summary with annotation totals, bbox/mask availability, and one count column per
-category.
-
-```bash
-inspect data/example/coco_a.json
-inspect data/example/coco_a.json -o data/inspect/example-coco.csv
-```
-
-### Column Options
-
-Column options only affect the default image summary table and `--sum`.
-
-- `--tablefmt FORMAT` selects the `tabulate` output format. Default: `github`.
-- `--no-dims` removes `width` and `height`.
-- `--no-meta` removes extra image metadata columns.
-- `--no-anno` removes all annotation-derived columns.
-- `--no-anno-types` removes only the `bbox` and `masks` columns.
-- `--no-cats` removes per-category count columns.
-
-```bash
-inspect data/example/coco_a.json --tablefmt simple
-inspect data/example/coco_a.json --no-dims
-inspect data/example/coco_a.json --no-meta
-inspect data/example/coco_a.json --no-anno
-inspect data/example/coco_a.json --no-anno-types
-inspect data/example/coco_a.json --no-cats
-```
-
-### Special Views
-
-Special views do not render the default image summary table. They are mutually
-exclusive.
-
-```bash 
-inspect data/example/coco_a.json --sum
-inspect data/example/coco_a.json --sum images
-inspect data/example/coco_a.json --sum annotations bbox masks tooth
-inspect data/example/coco_a.json --info
-inspect data/example/coco_a.json --schema
-inspect data/example/coco_a.json --schema extras
-inspect data/example/coco_b.json --segfmt
-inspect data/example/coco_a.json --images
-inspect data/example/coco_a.json --list
-inspect data/example/coco_a.json --labels
-inspect data/example/coco_a.json --categories
-```
-
-`--sum` prints a transposed field/value table for terminal output, with image
-count shown as `images`. If `--sum` is written to a `.csv` file, it stays as a
-single wide summary row. If one field is provided after `--sum`, only the raw
-numeric value is printed. If multiple fields are provided, they are rendered as
-a `field` / `value` table. Supported fields are `images`, `annotations`, `bbox`,
-`masks`, category IDs and category names.
-
-`--info` prints the top-level COCO `info` object as a key/value table, flattening
-nested fields with dot notation.
-
-`--schema` prints the observed COCO key structure. Keys in `images`,
-`annotations`, `categories`, and `licenses` are counted across their parent
-lists; if a key is not present in every record, their count is shown. 
-
-`--schema extras` shows only keys outside the built-in COCO standard-key lists.
-
-`--segfmt` reports the segmentation format used by selected annotations:
-`polygon`, `rle`, or `rle-compressed`. If no selected annotations have masks, it
-prints `None`. If multiple segmentation formats are present, it prints a JSON
-object with counts for each format. Image and category filters are applied
-before computing this value.
-
-`--images` and `--list` are aliases. They print selected images as
-`{image_id:02}: {filename}`, one per line, with no header.
-
-`--labels` and `--categories` are aliases. They print selected categories as
-`{category_id:02}: {label}`, one per line, with no header. Category filters can
-be used to narrow the list.
-
-
-### Filtering 
-Image filters match COCO image ID, `file_name`, basename, or filename stem.
-Category filters match category ID or category name.
-
-```bash
-inspect data/example/coco_a.json --include 1 example_002
-inspect data/example/coco_a.json --exclude example_001
-inspect data/example/coco_a.json --include-category tooth
-inspect data/example/coco_a.json --exclude-category other
-```
-
-## Planned Workflow
-
-### Compare
-
-Inputs:
-
-- two COCO JSON files
-- image root for rendering shared images
-
-Initial outputs:
-
-- summary of image, ROI, annotation, and category counts
-- added/missing images and ROIs
-- category distribution comparison
-- annotated image renders for images common to both COCO files, highlighting annotation differences
-
-Render all annotations from two COCO files onto each common fullframe:
-
-```bash
-python -m compare.cli render -c configs/compare.example.toml
-```
-
-Render the local Automorph/SAM2 tiny COCO comparison:
-
-```bash
-python -m compare.cli render -c configs/compare.automorph-sam2.toml
-```
-
-```bash
-python -m compare.cli render \
-  --coco-a ../cleanup-automorph/data/exports/coco/automorph-coco-tiny.json \
-  --coco-b ../cleanup-automorph/data/exports/coco/sam2-coco-tiny.json \
-  --name-a automorph \
-  --name-b sam2 \
-  --image-root ../cleanup-automorph/data/exports/coco/images-quartersizejpg \
-  --output 'data/automorph-sam2-coco-tiny-compare-render/{FFID}.jpg' \
-  --text "{OBJ:03}.{CATEGORY}" \
-  --provenance false \
-  --clobber
-
-```
-
-Useful filters:
-
-```bash
-python -m compare.cli render -c configs/compare.automorph-sam2.toml --ffid-include FFID_A FFID_B
-python -m compare.cli render -c configs/compare.automorph-sam2.toml --image-index 1 2 3
-python -m compare.cli render -c configs/compare.automorph-sam2.toml --mask-mode fill --text "{CATEGORY} {OBJ:05}"
-```
-
-`render` maps image IDs between both COCO files at startup using `image_key`
-(`file_name` by default), then renders image-by-image. `{FFID}` in `--output`
-is derived from the A-side `ffid_field` (`file_name` by default).
-
-`render-changed` and `render-diff` are reserved command stubs for the later
-changed-only and explicit-difference renderers.
 
 ### Push
 
@@ -262,11 +106,9 @@ Planned behavior:
 - save a reproducible raw export
 - convert reviewed annotations back into the COCO comparison format
 
----
-
 ## Dev Notes
 
-### Design precedent
+### Design Precedent
 
 This project is a focused refactor of
 `labelstudio-tools/projects/ichthyolith_sahi`, minus the YOLO pieces. Cleanup
@@ -274,46 +116,28 @@ and label-cycle only. Before adding new command scaffolding, check whether
 `labelstudio-tools` has an `initial-project` helper; if not, scope whether it
 needs to be added there first.
 
-### Push — sam2BigImg backend and latency
+### Push - sam2BigImg Backend And Latency
 
 The push command must work with the `sam2BigImg` backend on
-`ichthyolith.whoi.edu`. Before coding, define "acceptable" latency (target
-page-load time? per-edit response time?). After upload, validate that masks
-render correctly in the UI and are fully editable end-to-end before considering
-the command done.
+`ichthyolith.whoi.edu`. Before coding, define "acceptable" latency: page-load
+time or per-edit response time. After upload, validate that masks render
+correctly in the UI and are fully editable end-to-end before considering the
+command done.
 
-### Pull — diff report scope
+### Pull - Diff Report Scope
 
 The diff report should give high-level counts: new / edited / deleted ROIs. It
-should **not** produce a per-object-ID listing of every edit — that level of
-detail belongs in the annotated fullframe graphics, not the summary.
+should not produce a per-object-ID listing of every edit; that level of detail
+belongs in the annotated fullframe graphics, not the summary.
 
-### Pull — object-ID continuity
+### Pull - Object-ID Continuity
 
-When pulling reviewed annotations, preserve COCO annotation IDs across the
-cycle using these rules:
+When pulling reviewed annotations, preserve COCO annotation IDs across the cycle
+using these rules:
 
-1. ROI unchanged → keep original ID.
-2. New annotation that pixel-overlaps an existing automorph ROI → reuse that
-   ROI's ID. ("Overlap" = IoU above a threshold; threshold to be decided before
-   implementation.)
-3. Genuinely new annotation → assign next free ID.
+1. ROI unchanged: keep original ID.
+2. New annotation that pixel-overlaps an existing automorph ROI: reuse that ROI's ID. "Overlap" means IoU above a threshold; threshold to be decided before implementation.
+3. Genuinely new annotation: assign next free ID.
 
-The `roi_id` and `obj_id` extra fields in the cleanup-automorph COCO output are the
-stable identifiers to carry through.
-
-### Compare / render — one renderer, shared by compare and pull
-
-`compare` and `pull` both need a diff renderer. Implement it once in `compare`
-and have `pull` invoke it — do not build two independent diff renderers.
-
-Full output spec for the renderer:
-
-- Annotated fullframe with both datasets' bboxes and masks overlaid.
-- Mask-difference view.
-- Toggle object-ID labels on/off.
-- Extract individual ROIs by ID.
-- List new / edited / deleted ROIs; sort by most-different first.
-- Per-Z1 mask color defaults: Z1.1 green, Z1.2 blue, Z1.3 purple; Z1.4 not
-  shown by default.
-- Per-source bbox color defaults: automorph cyan, sam2 red.
+The `roi_id` and `obj_id` extra fields in the cleanup-automorph COCO output are
+the stable identifiers to carry through.

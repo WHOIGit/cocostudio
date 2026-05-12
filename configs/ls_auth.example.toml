@@ -1,0 +1,21 @@
+# Auth file — KEEP OUT OF VERSION CONTROL.
+# Required: a [[labelstudio]] entry with host + token matching the
+# project config's host. [[storage]] and [[ml_backend]] entries are
+# optional and can be removed.
+
+[[labelstudio]]
+host = ""  # Label Studio instance URL (REQUIRED).
+token = ""  # LS API token (REQUIRED — usually lives in the auth file).
+
+[[storage]]
+type = "s3"  # Storage backend type (only 's3' implemented).
+bucket = ""  # S3 bucket name.
+endpoint_url = ""  # S3 endpoint URL.
+aws_access_key_id = ""  # S3 access key ID.
+aws_secret_access_key = ""  # S3 secret access key.
+
+[[ml_backend]]
+name = ""  # ML backend display name.
+backend_url = ""  # ML backend service URL.
+# user = ""  # HTTP basic-auth user for ML backend.
+# pass = ""  # HTTP basic-auth password for ML backend.

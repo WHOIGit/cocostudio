@@ -1,0 +1,14 @@
+coco_file = "data/from_cleanup/automorph-coco-small.json"
+image_root = "data/from_cleanup/images-halfsizejpg"
+output = "data/render/automorph/{FILE_STEM}.jpg"
+clobber = true
+text = "{obj_id:03}"
+
+[style]
+tooth = "green"
+denticle = "blue"
+other = "purple"
+junk = "orange"
+unlabeled = "red"
+text_size = 16
+text_location = "top"

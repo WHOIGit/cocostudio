@@ -1,0 +1,44 @@
+# Stub Label Studio project config.
+# Strictly required: host, label_config, and a valid token (in the auth
+# file or inline). Anything else can be removed if not needed —
+# including the entire [[storage]], [ml_backend], and [annotations]
+# sections.
+
+host = ""  # Label Studio instance URL (REQUIRED).
+project = ""  # Display name on Label Studio.
+label_config = ""  # Path to labeling-config XML (REQUIRED).
+auth = "ls_auth.example.toml"  # Path to auth file holding secrets.
+
+[labelstudio-tools]
+pk = "image"  # Field in task data used as primary identifier.
+cache = "RAM"  # TaskManager cache backend ('RAM' is the only option).
+
+[general]
+description = ""  # Free-text project description.
+task_sampling = "sequential"  # Order tasks are presented: sequential | uniform | uncertainty.
+color = "#FF4C25"  # Red — Project tile color in LS UI (#RRGGBB).
+
+[[storage]]
+type = "s3"  # Storage backend type (only 's3' implemented).
+mode = "source"  # source/import (data in) or target/export (data out).
+title = ""  # Display name for this storage in LS.
+bucket = ""  # S3 bucket name.
+endpoint_url = ""  # S3 endpoint URL.
+bucket_prefix = ""  # Prefix path within the bucket (optional).
+presigned_urls = true  # Generate presigned URLs for tasks.
+presigned_urls_expiry = 15  # Presigned-URL expiry in minutes.
+import_method = "tasks"  # 'tasks' (tasks from json, jsonl, parquet files) or 'blobs' (tasks from media-files).
+file_name_filter = "(?!)"  # Regex filter for filenames (default '(?!)' = none).
+scan_all_subfolders = true  # Recurse into subfolders.
+
+[ml_backend]
+name = ""  # ML backend display name.
+backend_url = ""  # ML backend service URL.
+interactive = true  # Allow interactive prelabeling tools (smart tools).
+extra_params = {}  # JSON object of extra params passed to the backend.
+start_training_on_annotation_update = false  # Trigger training on each annotation save.
+annotation_prelabeling = false  # Auto-apply backend predictions as annotations.
+
+[annotations]
+instructions = ""  # Annotator instructions text.
+show_before_labeling = false  # Show instructions modal before labeling.

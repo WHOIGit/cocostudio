@@ -1,0 +1,38 @@
+host = "https://ichthyolith.whoi.edu"
+project = "Clean Fullframe ROI's from SAM2-Automorph"
+label_config = "config/label_ui.xml"
+auth = "ls_auth.toml"
+
+[labelstudio-tools]
+pk = "image"
+cache = "RAM"
+
+[general]
+description = "Used to review fullframe-rois"
+task_sampling = "sequential"
+color = "#FF4C25"  # Red
+
+[[storage]]
+type = "s3"
+mode = "source"
+title = "ichthyolith storage"
+bucket = "ichthyolith"
+endpoint_url = "http://vast.whoi.edu"
+bucket_prefix = "fullframe_halfsize"
+presigned_urls = true
+presigned_urls_expiry = 15
+import_method = "tasks"
+file_name_filter = "(?!)"
+scan_all_subfolders = true
+
+[ml_backend]
+name = "SAM2 BigImg"
+backend_url = "https://mlbackend.brick.whoi.edu/SAM2BigImg/"
+interactive = true
+extra_params = { crop_size = 1024 }
+start_training_on_annotation_update = false
+annotation_prelabeling = false
+
+[annotations]
+instructions = ""
+show_before_labeling = false
