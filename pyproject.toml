@@ -11,6 +11,10 @@ requires-python = ">=3.11"
 dependencies = [
     #"coconut-crab @ git+https://github.com/WHOIGit/coconut-crab.git",
     #"labelstudio-tools @ git+https://github.com/WHOIGit/labelstudio-tools.git",
+    "numpy",
+    "opencv-python-headless",  # cv2.approxPolyDP for polygon simplification
+    "pycocotools",
+    "tqdm",
 ]
 
 [project.optional-dependencies]
@@ -18,8 +22,12 @@ dev = [
     "pytest",
 ]
 
+[project.scripts]
+cocostudio-push = "cocostudio.cli:push_main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = [
     "cocostudio",
+    "sam2dirty",
 ]

@@ -6,6 +6,7 @@ auth = "ls_auth.toml"
 [labelstudio-tools]
 pk = "image"
 cache = "RAM"
+s3_https_suppress = true  # LS server needs https in storage endpoint_url; local boto3 only works with http for vast.whoi.edu
 
 [general]
 description = "Used to review fullframe-rois"
@@ -17,8 +18,8 @@ type = "s3"
 mode = "source"
 title = "ichthyolith storage"
 bucket = "ichthyolith"
-endpoint_url = "http://vast.whoi.edu"
-bucket_prefix = "fullframe_halfsize"
+endpoint_url = "https://vast.whoi.edu"
+bucket_prefix = "fullframe_halfsizejpg_cannonical"
 presigned_urls = true
 presigned_urls_expiry = 15
 import_method = "tasks"
