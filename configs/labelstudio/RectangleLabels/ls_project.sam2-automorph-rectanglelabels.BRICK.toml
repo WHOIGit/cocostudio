@@ -1,7 +1,7 @@
-host = "https://ichthyolith.whoi.edu"
-project = "Clean Fullframe ROI's from SAM2-Automorph"
-label_config = "config/label_ui.xml"
-auth = "ls_auth.toml"
+host = "https://labelstudio.brick.whoi.edu"
+project = "sam2dirty cleanup - RectangleLabels"
+label_config = "RectangleLabels/label-ui_rectanglelabels.xml"
+auth = "../ls_auth.toml"
 
 [labelstudio-tools]
 pk = "image"
@@ -28,11 +28,12 @@ scan_all_subfolders = true
 
 [ml_backend]
 name = "SAM2 BigImg"
-backend_url = "https://mlbackend.brick.whoi.edu/SAM2BigImg/"
+backend_url = "https://mlbackend.brick.whoi.edu/SAM2BigImg_brick/"
 interactive = true
-extra_params = { crop_size = 1024 }
+extra_params = { subpatching = { patch_size = 1024 }, postprocess = { mask_size_threshold = 1, dilate = 0.05 }, output_format = { type = "RectangleLabels" } }
 start_training_on_annotation_update = false
 annotation_prelabeling = false
+exclude_existing_annotations = true
 
 [annotations]
 instructions = ""
