@@ -1,70 +1,93 @@
-"""Console-script CLI for ``cocostudio-push``."""
+"""Console-script CLI for ``cocostudio`` (``cocostudio push`` / ``cocostudio pull``)."""
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from labelstudio_tools import TaskManager
+from labelstudio_tools.config import find_storage, load_config
 
+from .config import PUSH_KEYS, SHARED_KEYS, load_push_config
 from .push import push_coco
 
+# All config-mergeable parameter keys (config + CLI overrides share these names).
+_PARAM_KEYS = (*SHARED_KEYS, *PUSH_KEYS)
 
-def _default_model_version(coco_path: str) -> str:
-    """Best-effort default: ``{info.description}-{info.date_created}`` if present."""
-    try:
-        with open(coco_path) as f:
-            info = json.load(f).get("info", {}) or {}
-        desc = info.get("description") or "coco"
-        date = info.get("date_created")
-        return f"{desc}-{date}" if date else desc
-    except Exception:
-        return "coco-push"
+# Hardcoded defaults. Deliberately omits ls_config / coco / image_dir: those have
+# no sensible default, so a missing value is an error rather than a fallback.
+_DEFAULTS = {
+    "s3_prefix": None,                    # None → derive from ls_config storage
+    "region_id_pattern": "{annotation.id}",
+    "model_version": None,                # None → derived from COCO info
+    "map_bbox": None,
+    "map_seg": None,
+    "polygon_preprocess_epsilon": None,
+    "polygon_preprocess_maxpoints": None,
+    "include": None,
+    "exclude": None,
+    "dry_run": False,
+}
+
+
+def _add_push_args(p: argparse.ArgumentParser) -> None:
+    """Push flags. Every override defaults to ``None`` so 'not passed' is detectable
+    and the config value (or hardcoded default) shows through."""
+    p.add_argument("-c", "--config", required=True,
+                   help="Pushpull TOML config (e.g. configs/pushpull/sam2dirty_brush.toml).")
+    p.add_argument("--ls-config", default=None,
+                   help="Override: LS project TOML.")
+    p.add_argument("--coco", default=None, help="Override: COCO JSON file.")
+    p.add_argument("--image-dir", default=None,
+                   help="Override: local image directory; file_names must match COCO.")
+    p.add_argument("--s3-prefix", default=None,
+                   help="Override: S3 key prefix. Omit to use the LS project's "
+                        "[[storage]].bucket_prefix.")
+    p.add_argument("--region-id-pattern", default=None,
+                   help="Override: pattern for LS region IDs (default {annotation.id}).")
+    p.add_argument("--model-version", default=None,
+                   help="Override: LS prediction model_version. {info.*} tokens are "
+                        "resolved against COCO info. Default: derived from COCO info.")
+    p.add_argument("--map-bbox", default=None, metavar="TAG",
+                   help="Send COCO bboxes to this rectangle control (a control name "
+                        "or a tag type, e.g. RectangleLabels).")
+    p.add_argument("--map-seg", default=None, metavar="TAG",
+                   help="Send COCO segmentations to this polygon/brush control (a "
+                        "control name or a tag type). Its type selects polygon vs brush.")
+    p.add_argument("--polygon-preprocess-epsilon", type=float, default=None,
+                   help="Douglas-Peucker simplification of polygon segmentations. "
+                        "<1 = fraction of perimeter; >=1 = absolute pixels. Errors if "
+                        "--map-seg targets a brush control.")
+    p.add_argument("--polygon-preprocess-maxpoints", type=int, default=None, metavar="N",
+                   help="Cap vertices per polygon (epsilon binary-searched to honour "
+                        "it). 0 disables simplification.")
+    p.add_argument("--include", nargs="+", default=None, metavar="VALUE",
+                   help="Image id, file_name, or stem(s) to include.")
+    p.add_argument("--exclude", nargs="+", default=None, metavar="VALUE",
+                   help="Image id, file_name, or stem(s) to exclude.")
+    p.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=None,
+                   help="Plan only — no S3 uploads, no LS task creation "
+                        "(--no-dry-run forces a real run over a config dry_run=true).")
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="cocostudio-push",
-        description="Push COCO predictions to a Label Studio project.",
-    )
-    p.add_argument("-c", "--config", required=True,
-                   help="LS project TOML config (relative to CWD).")
-    p.add_argument("--coco", required=True, help="COCO JSON file.")
-    p.add_argument("--image-dir", required=True,
-                   help="Local image directory; file_names must match COCO.")
-    p.add_argument("--s3-prefix", required=True,
-                   help="S3 key prefix (e.g. 'fullframe_halfsize').")
-    p.add_argument("--include", nargs="+", metavar="VALUE",
-                   help="Image id, file_name, or stem(s) to include.")
-    p.add_argument("--exclude", nargs="+", metavar="VALUE",
-                   help="Image id, file_name, or stem(s) to exclude.")
-    p.add_argument("--region-id-pattern", default="{annotation.id}",
-                   help="Pattern for LS region IDs. Default: {annotation.id}")
-    p.add_argument("--model-version", default=None,
-                   help="LS prediction model_version string. "
-                        "Default: derived from COCO info.")
-    kinds = p.add_mutually_exclusive_group()
-    kinds.add_argument("--bbox", action="store_true",
-                       help="Push bbox (rectangle) results only.")
-    kinds.add_argument("--mask", action="store_true",
-                       help="Push segmentation (brush/polygon) results only.")
-    p.add_argument("--epsilon", type=float, default=None,
-                   help="Douglas-Peucker simplification of polygon "
-                        "segmentations. <1 = fraction of perimeter; "
-                        ">=1 = absolute pixels. Omit to push raw polygons.")
-    p.add_argument("--max-points", type=int, default=None, metavar="N",
-                   help="Cap vertices per polygon (epsilon binary-searched up "
-                        "to honour it). 0 disables simplification.")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Plan only — no S3 uploads, no LS task creation.")
+        prog="cocostudio",
+        description="Push COCO predictions to / pull reviewed annotations from Label Studio.")
+    sub = p.add_subparsers(dest="command", required=True)
+    p_push = sub.add_parser(
+        "push", help="Push COCO predictions to a Label Studio project.")
+    _add_push_args(p_push)
+    p_push.set_defaults(func=push_command)
+    p_pull = sub.add_parser("pull", help="(not yet implemented)")
+    p_pull.set_defaults(func=pull_command)
     return p
 
 
 def resolve_simplify(epsilon: float | None,
                      max_points: int | None) -> tuple[float | None, int | None]:
-    """Normalize polygon-simplification CLI args into ``(epsilon, max_points)``.
+    """Normalize polygon-simplification args into ``(epsilon, max_points)``.
 
     ``max_points == 0`` is the escape hatch: disables simplification entirely
     (raw polygons). A ``max_points`` cap given without ``epsilon`` falls back
@@ -75,6 +98,42 @@ def resolve_simplify(epsilon: float | None,
     if max_points is not None and epsilon is None:
         epsilon = 1.0
     return epsilon, max_points
+
+
+def _merge_settings(args: argparse.Namespace) -> dict:
+    """Layer hardcoded defaults < config file < explicitly-passed CLI flags."""
+    config = load_push_config(args.config)
+    settings = {**_DEFAULTS, **config}
+    for key in _PARAM_KEYS:
+        val = getattr(args, key, None)
+        if val is not None:                       # None == flag not passed
+            settings[key] = val
+    return settings
+
+
+def _resolve_s3_prefix(settings: dict) -> str:
+    """Use the configured s3_prefix, else the LS project's storage bucket_prefix."""
+    if settings["s3_prefix"] is not None:
+        return settings["s3_prefix"]
+    storage = find_storage(load_config(settings["ls_config"]))
+    prefix = storage.get("bucket_prefix") if storage else None
+    if not prefix:
+        raise ValueError(
+            "no s3_prefix configured and the LS project's [[storage]] entry has "
+            "no 'bucket_prefix'; set s3_prefix in the config or pass --s3-prefix")
+    return prefix
+
+
+def _validate(settings: dict) -> None:
+    missing = [k for k in ("ls_config", "coco", "image_dir") if not settings.get(k)]
+    if missing:
+        raise ValueError(f"missing required config/flag(s): {missing}")
+    for key in ("ls_config", "coco", "image_dir"):
+        if not Path(settings[key]).exists():
+            raise ValueError(f"{key} path not found: {settings[key]}")
+    if not settings["map_bbox"] and not settings["map_seg"]:
+        raise ValueError("provide at least one of map_bbox / map_seg "
+                         "(--map-bbox / --map-seg) — nothing to push otherwise")
 
 
 def _print_report(report: dict) -> None:
@@ -110,43 +169,49 @@ def _print_report(report: dict) -> None:
         print(f"  [{marker}] {k}  task_id={v['task_id']}")
 
 
-def push_main(argv: list[str] | None = None) -> int:
-    """Entry point for the ``cocostudio-push`` console script."""
-    args = _build_parser().parse_args(argv)
-
-    config_path = Path(args.config)
-    if not config_path.exists():
-        print(f"error: config file not found: {config_path}", file=sys.stderr)
+def push_command(args: argparse.Namespace) -> int:
+    try:
+        settings = _merge_settings(args)
+        _validate(settings)
+        s3_prefix = _resolve_s3_prefix(settings)
+    except (ValueError, OSError) as e:
+        print(f"error: {e}", file=sys.stderr)
         return 2
 
-    model_version = args.model_version or _default_model_version(args.coco)
-    if args.bbox:
-        kinds = ("bbox",)
-    elif args.mask:
-        kinds = ("mask",)
-    else:
-        kinds = ("bbox", "mask")
+    epsilon, max_points = resolve_simplify(
+        settings["polygon_preprocess_epsilon"],
+        settings["polygon_preprocess_maxpoints"])
 
-    epsilon, max_points = resolve_simplify(args.epsilon, args.max_points)
-
-    taskman = TaskManager.from_config(str(config_path))
+    taskman = TaskManager.from_config(settings["ls_config"])
     report = push_coco(
         taskman=taskman,
-        coco_path=args.coco,
-        image_dir=args.image_dir,
-        s3_prefix=args.s3_prefix,
-        region_id_pattern=args.region_id_pattern,
-        model_version=model_version,
-        include=args.include,
-        exclude=args.exclude,
-        kinds=kinds,
+        coco_path=settings["coco"],
+        image_dir=settings["image_dir"],
+        s3_prefix=s3_prefix,
+        region_id_pattern=settings["region_id_pattern"],
+        model_version=settings["model_version"],
+        map_bbox=settings["map_bbox"],
+        map_seg=settings["map_seg"],
+        include=settings["include"],
+        exclude=settings["exclude"],
         polygon_epsilon=epsilon,
         polygon_max_points=max_points,
-        dry_run=args.dry_run,
+        dry_run=bool(settings["dry_run"]),
     )
     _print_report(report)
     return 0
 
 
+def pull_command(args: argparse.Namespace) -> int:
+    print("cocostudio pull is not yet implemented.", file=sys.stderr)
+    return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point for the ``cocostudio`` console script."""
+    args = _build_parser().parse_args(argv)
+    return args.func(args)
+
+
 if __name__ == "__main__":
-    raise SystemExit(push_main())
+    raise SystemExit(main())

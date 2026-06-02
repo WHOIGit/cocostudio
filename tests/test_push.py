@@ -7,9 +7,14 @@ import pytest
 
 from cocostudio.push import (
     ControlMap,
+    _BBOX_FAMILIES,
+    _SEG_FAMILIES,
     _bbox_value,
     _brush_value,
+    _check_categories,
+    _make_control,
     _polygon_value,
+    _resolve_model_version,
     build_prediction,
     coco_anno_to_ls_results,
     coco_segmentation_to_mask,
@@ -42,17 +47,12 @@ def test_annos(coco, test_image):
     return annos
 
 
+_LABELS = {"tooth", "denticle", "other", "junk", "unlabeled"}
+
+
 @pytest.fixture
-def brush_controls():
-    return ControlMap({
-        "brush": {
-            "from_name": "brush",
-            "to_name": "image",
-            "result_type": "brushlabels",
-            "value_key": "brushlabels",
-            "labels": {"tooth", "denticle", "other", "junk", "unlabeled"},
-        }
-    })
+def brush_ctrl():
+    return _make_control("brush", "image", "brushlabels", _LABELS)
 
 
 # ---------------------------------------------------------------------------
@@ -186,12 +186,12 @@ def test_brush_value_has_rle(test_annos, test_image):
 # coco_anno_to_ls_results
 # ---------------------------------------------------------------------------
 
-def test_results_brush_only(test_annos, test_image, brush_controls):
+def test_results_brush_only(test_annos, test_image, brush_ctrl):
     anno = test_annos[0]
     results = coco_anno_to_ls_results(
-        anno, test_image, brush_controls, region_id="test-id"
+        anno, test_image, region_id="test-id", seg_ctrl=brush_ctrl
     )
-    # only brushlabels (no rectangle control)
+    # only brushlabels (no rectangle control mapped)
     assert len(results) == 1
     r = results[0]
     assert r["type"] == "brushlabels"
@@ -204,18 +204,18 @@ def test_results_brush_only(test_annos, test_image, brush_controls):
     assert r["value"]["brushlabels"] == [anno["_category_name"]]
 
 
-def test_results_region_id_propagated(test_annos, test_image, brush_controls):
+def test_results_region_id_propagated(test_annos, test_image, brush_ctrl):
     anno = test_annos[0]
     results = coco_anno_to_ls_results(
-        anno, test_image, brush_controls, region_id="my-unique-id"
+        anno, test_image, region_id="my-unique-id", seg_ctrl=brush_ctrl
     )
     assert all(r["id"] == "my-unique-id" for r in results)
 
 
-def test_results_score_propagated(test_annos, test_image, brush_controls):
+def test_results_score_propagated(test_annos, test_image, brush_ctrl):
     anno = test_annos[0]
     results = coco_anno_to_ls_results(
-        anno, test_image, brush_controls, region_id="x"
+        anno, test_image, region_id="x", seg_ctrl=brush_ctrl
     )
     # annotation has a score field
     for r in results:
@@ -223,23 +223,47 @@ def test_results_score_propagated(test_annos, test_image, brush_controls):
         assert r["score"] == pytest.approx(anno["score"])
 
 
-def test_results_all_annotations(test_annos, test_image, brush_controls):
+def test_results_all_annotations(test_annos, test_image, brush_ctrl):
     for i, anno in enumerate(test_annos):
         results = coco_anno_to_ls_results(
-            anno, test_image, brush_controls, region_id=f"r{i}"
+            anno, test_image, region_id=f"r{i}", seg_ctrl=brush_ctrl
         )
         assert len(results) >= 1
+
+
+def test_results_labelless_omits_category(test_annos, test_image):
+    # A bare <Brush> control (value_key=None) pushes geometry with no label.
+    bare = _make_control("brush", "image", "brush")
+    anno = test_annos[0]
+    results = coco_anno_to_ls_results(
+        anno, test_image, region_id="x", seg_ctrl=bare
+    )
+    assert results[0]["type"] == "brush"
+    assert "brushlabels" not in results[0]["value"]
+    assert "rle" in results[0]["value"]
+
+
+def test_results_bbox_and_seg(test_annos, test_image, brush_ctrl):
+    rect = _make_control("rect", "image", "rectanglelabels", _LABELS)
+    anno = test_annos[0]
+    anno = {**anno, "bbox": [1.0, 2.0, 3.0, 4.0]}
+    results = coco_anno_to_ls_results(
+        anno, test_image, region_id="x", bbox_ctrl=rect, seg_ctrl=brush_ctrl
+    )
+    types = {r["type"] for r in results}
+    assert types == {"rectanglelabels", "brushlabels"}
 
 
 # ---------------------------------------------------------------------------
 # build_prediction
 # ---------------------------------------------------------------------------
 
-def test_build_prediction_structure(test_annos, test_image, brush_controls):
+def test_build_prediction_structure(test_annos, test_image, brush_ctrl):
     pred = build_prediction(
-        test_image, test_annos, brush_controls,
+        test_image, test_annos,
         region_id_pattern="roi_{annotation.meta.roi_id}",
         model_version="test-model-v1",
+        seg_ctrl=brush_ctrl,
     )
     assert pred["model_version"] == "test-model-v1"
     assert isinstance(pred["result"], list)
@@ -248,21 +272,101 @@ def test_build_prediction_structure(test_annos, test_image, brush_controls):
     assert 0.0 <= pred["score"] <= 1.0
 
 
-def test_build_prediction_region_ids_unique(test_annos, test_image, brush_controls):
+def test_build_prediction_region_ids_unique(test_annos, test_image, brush_ctrl):
     pred = build_prediction(
-        test_image, test_annos, brush_controls,
+        test_image, test_annos,
         region_id_pattern="roi_{annotation.meta.roi_id}",
         model_version="m",
+        seg_ctrl=brush_ctrl,
     )
     ids = [r["id"] for r in pred["result"]]
     assert len(ids) == len(set(ids)), "region IDs must be unique across results"
 
 
-def test_build_prediction_region_id_contains_roi_id(test_annos, test_image, brush_controls):
+def test_build_prediction_region_id_contains_roi_id(test_annos, test_image, brush_ctrl):
     pred = build_prediction(
-        test_image, test_annos, brush_controls,
+        test_image, test_annos,
         region_id_pattern="roi_{annotation.meta.roi_id}",
         model_version="m",
+        seg_ctrl=brush_ctrl,
     )
     for r in pred["result"]:
         assert r["id"].startswith("roi_")
+
+
+# ---------------------------------------------------------------------------
+# ControlMap.resolve  (name / type / family resolution)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def controls():
+    # Mirrors the RectangleLabels BRICK project: two rectangle controls + a brush.
+    return ControlMap([
+        _make_control("rect", "image", "rectanglelabels", _LABELS),
+        _make_control("bbox", "image", "rectanglelabels", _LABELS),
+        _make_control("brush", "image", "brushlabels", _LABELS),
+    ])
+
+
+def test_resolve_by_name(controls):
+    ctrl = controls.resolve("bbox", families=_BBOX_FAMILIES, what="--map-bbox")
+    assert ctrl["from_name"] == "bbox"
+
+
+def test_resolve_by_type_unique(controls):
+    ctrl = controls.resolve("BrushLabels", families=_SEG_FAMILIES, what="--map-seg")
+    assert ctrl["from_name"] == "brush"
+
+
+def test_resolve_by_type_ambiguous_lists_names(controls):
+    with pytest.raises(ValueError, match="ambiguous"):
+        controls.resolve("RectangleLabels", families=_BBOX_FAMILIES, what="--map-bbox")
+
+
+def test_resolve_wrong_family(controls):
+    # brush is a segmentation control; not valid for --map-bbox.
+    with pytest.raises(ValueError, match="not usable here"):
+        controls.resolve("brush", families=_BBOX_FAMILIES, what="--map-bbox")
+
+
+def test_resolve_unknown(controls):
+    with pytest.raises(ValueError, match="neither a control name nor"):
+        controls.resolve("nope", families=_SEG_FAMILIES, what="--map-seg")
+
+
+def test_resolve_type_no_control(controls):
+    no_poly = ControlMap([_make_control("brush", "image", "brushlabels", _LABELS)])
+    with pytest.raises(ValueError, match="no control"):
+        no_poly.resolve("PolygonLabels", families=_SEG_FAMILIES, what="--map-seg")
+
+
+# ---------------------------------------------------------------------------
+# _check_categories / _resolve_model_version
+# ---------------------------------------------------------------------------
+
+def test_check_categories_missing_label():
+    coco = {"categories": [{"id": 1, "name": "mystery"}]}
+    ctrl = _make_control("brush", "image", "brushlabels", _LABELS)
+    with pytest.raises(ValueError, match="mystery"):
+        _check_categories(coco, [ctrl])
+
+
+def test_check_categories_skips_labelless():
+    coco = {"categories": [{"id": 1, "name": "mystery"}]}
+    bare = _make_control("brush", "image", "brush")  # no labels
+    _check_categories(coco, [bare])  # no raise
+
+
+def test_model_version_template_resolves():
+    coco = {"info": {"date_created": "2026-01-02"}}
+    assert _resolve_model_version("sam2-{info.date_created}", coco) == "sam2-2026-01-02"
+
+
+def test_model_version_missing_info_raises():
+    with pytest.raises(ValueError, match="missing"):
+        _resolve_model_version("sam2-{info.date_created}", {"info": {}})
+
+
+def test_model_version_default_from_info():
+    coco = {"info": {"description": "ds", "date_created": "2026-01-02"}}
+    assert _resolve_model_version(None, coco) == "ds-2026-01-02"

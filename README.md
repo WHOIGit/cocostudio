@@ -9,14 +9,20 @@ using `coconut-crab`'s `coco-render-combo`.
 ```text
 cocostudio/
 ├── configs/
-│   ├── compare.automorph-sam2.toml
-│   ├── ls_auth.example.toml
-│   └── ls_project.clean-sam2-automorph.toml
+│   ├── labelstudio/         # LS project + auth configs (per label type)
+│   ├── pushpull/            # cocostudio push/pull configs
+│   │   ├── pushpull.example.toml
+│   │   ├── sam2dirty_brush.toml
+│   │   ├── sam2dirty_polygon.toml
+│   │   └── sam2dirty_rect.toml
+│   └── render/              # coco-render-combo configs
 ├── data/
 │   ├── from_cleanup -> ../cleanup-automorph/data/exports/coco
 │   └── render/
 ├── src/
 │   └── cocostudio/
+│       ├── cli.py           # `cocostudio` console script (push/pull)
+│       ├── config.py        # pushpull config loader
 │       ├── push.py
 │       └── pull.py
 ├── pyproject.toml
@@ -82,15 +88,40 @@ These are ignored by git.
 
 ### Push
 
-Inputs:
+`cocostudio push` uploads COCO predictions to a Label Studio project, staging
+images to S3 first if needed. It reads a **pushpull config** (`configs/pushpull/`)
+that bundles the inputs and the annotation→tag mapping:
 
-- COCO JSON file
-- Label Studio project config
+```bash
+cocostudio push -c configs/pushpull/sam2dirty_brush.toml --dry-run
+cocostudio push -c configs/pushpull/sam2dirty_polygon.toml --include 101_U1553C_22R_1W_28-30cm_N2of2_Z200x
+```
 
-Planned behavior:
+A pushpull config has shared top-level keys (`ls_config`, `s3_prefix`,
+`region_id_pattern`) and a `[push]` section. Every key is the long form of a CLI
+flag, and any flag passed on the command line overrides the config value. See
+`configs/pushpull/pushpull.example.toml` for the annotated schema.
 
-- create Label Studio tasks from COCO images and annotations
-- avoid duplicate uploads using a configured primary key
+**Annotation → tag mapping.** At least one of `map_bbox` / `map_seg` is required:
+
+- `map_bbox` — a rectangle-family control to receive COCO bounding boxes.
+- `map_seg` — a polygon- or brush-family control to receive segmentations; the
+  control's type decides whether masks are pushed as polygons or brush strokes.
+
+Each value is either a **control name** (`from_name`) or a **tag type**
+(`Rectangle`, `RectangleLabels`, `Polygon`, `PolygonLabels`, `Brush`,
+`BrushLabels`). A bare type resolves only if the project has exactly one such
+control; otherwise name it explicitly. The bare, label-less variants
+(`<Rectangle>`/`<Polygon>`/`<Brush>`) push geometry with no category label.
+
+**Polygon preprocessing** (`polygon_preprocess_epsilon` /
+`polygon_preprocess_maxpoints`) Douglas-Peucker–simplifies polygon segmentations
+for LS editor performance; it errors if `map_seg` targets a brush control.
+
+Behavior:
+
+- create Label Studio tasks from COCO images and annotations (as predictions)
+- avoid duplicate uploads using the project's configured primary key
 - preserve enough COCO metadata to support later export and comparison
 
 ### Pull

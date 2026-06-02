@@ -1,0 +1,21 @@
+# SAM2-Automorph -> "sam2dirty cleanup - PolygonLabels" project.
+# Segmentation-only: COCO polygons land on the project's PolygonLabels control,
+# Douglas-Peucker simplified for LS editor performance. No bounding boxes.
+# Replaces the former `sam2dirty.push:push_v2` profile.
+#
+# The deployed project's segmentation control happens to be NAMED `brush` even
+# though it is a PolygonLabels tag, so we target it by type ("PolygonLabels") —
+# unambiguous since the project has exactly one polygon control.
+
+ls_config = "configs/labelstudio/PolygonLabels/ls_project.sam2-automorph-polygonlabels.BRICK.toml"
+# s3_prefix omitted -> uses the project's [[storage]].bucket_prefix.
+region_id_pattern = "roi_{annotation.meta.roi_id}"
+
+[push]
+coco          = "data/from_cleanup/sam2-coco-small.json"
+image_dir     = "data/from_cleanup/images-halfsizejpg"
+model_version = "sam2-automorph-v2-{info.date_created}"
+map_seg       = "PolygonLabels"
+# Defaults from ml_backends/SAM2BigImg basic-polygon.json. maxpoints=0 pushes raw.
+polygon_preprocess_epsilon   = 0.003
+polygon_preprocess_maxpoints = 50

@@ -23,11 +23,10 @@ dev = [
 ]
 
 [project.scripts]
-cocostudio-push = "cocostudio.cli:push_main"
+cocostudio = "cocostudio.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = [
     "cocostudio",
-    "sam2dirty",
 ]

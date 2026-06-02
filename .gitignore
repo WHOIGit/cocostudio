@@ -15,6 +15,5 @@ ls_auth.*.toml
 !ls_auth.example.toml
 
 # temp
-src/sam2dirty
 configs/labelstudio/denticle.Type.Taxonomy.json
 configs/labelstudio/ls_auth.toml

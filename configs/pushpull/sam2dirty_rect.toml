@@ -1,0 +1,16 @@
+# SAM2-Automorph -> "sam2dirty cleanup - RectangleLabels" project.
+# Bbox-only: COCO bboxes land on the `bbox` output RectangleLabels control.
+#
+# This project has TWO RectangleLabels controls — `rect` (smart prompt) and
+# `bbox` (output) — so map_bbox must name `bbox` explicitly; the bare type
+# "RectangleLabels" would be ambiguous and error.
+
+ls_config = "configs/labelstudio/RectangleLabels/ls_project.sam2-automorph-rectanglelabels.BRICK.toml"
+# s3_prefix omitted -> uses the project's [[storage]].bucket_prefix.
+region_id_pattern = "roi_{annotation.meta.roi_id}"
+
+[push]
+coco          = "data/from_cleanup/sam2-coco-small.json"
+image_dir     = "data/from_cleanup/images-halfsizejpg"
+model_version = "sam2-automorph-rect-{info.date_created}"
+map_bbox      = "bbox"

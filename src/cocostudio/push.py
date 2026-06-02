@@ -97,67 +97,129 @@ def format_pattern(pattern: str, **scopes: dict) -> str:
 # Control discovery
 # ---------------------------------------------------------------------------
 
-# LS result `type` is lowercase; value-key is the same string. Map a control
-# XML tag (e.g. "BrushLabels") to (result_type, value_key).
-_CONTROL_KINDS = {
-    'rectanglelabels': ('rectanglelabels', 'rectanglelabels'),
-    'polygonlabels':   ('polygonlabels',   'polygonlabels'),
-    'brushlabels':     ('brushlabels',     'brushlabels'),
-    'keypointlabels':  ('keypointlabels',  'keypointlabels'),
+# The six mappable LS control tags, by lowercased XML tag name. Each maps to
+# ``(family, has_labels)``. ``family`` ('rectangle'|'polygon'|'brush') decides
+# whether a control is eligible for --map-bbox (rectangle) or --map-seg
+# (polygon/brush). ``has_labels`` is True for the ``*Labels`` variants, which
+# carry a label list and attach a category name; the bare variants
+# (``<Rectangle>``/``<Polygon>``/``<Brush>``) push geometry with no label.
+_CONTROL_TAGS = {
+    'rectangle':       ('rectangle', False),
+    'rectanglelabels': ('rectangle', True),
+    'polygon':         ('polygon',   False),
+    'polygonlabels':   ('polygon',   True),
+    'brush':           ('brush',     False),
+    'brushlabels':     ('brush',     True),
 }
+
+# Family -> which kinds of COCO geometry it can receive.
+_BBOX_FAMILIES = frozenset({'rectangle'})
+_SEG_FAMILIES = frozenset({'polygon', 'brush'})
+
+
+def _make_control(from_name: str, to_name: Optional[str], type_key: str,
+                  labels: Optional[Iterable[str]] = None) -> dict:
+    """Build a control entry dict from a tag's name/type/labels.
+
+    ``value_key`` is the labels key for ``*Labels`` controls (same string as the
+    result type) or ``None`` for the bare, label-less variants.
+    """
+    family, has_labels = _CONTROL_TAGS[type_key]
+    return {
+        'from_name': from_name,
+        'to_name': to_name,
+        'type_key': type_key,
+        'family': family,
+        'result_type': type_key,
+        'value_key': type_key if has_labels else None,
+        'labels': set(labels or ()),
+    }
 
 
 class ControlMap:
-    """Resolved Label Studio controls keyed by kind ('rectangle'|'polygon'|'brush').
+    """The mappable Label Studio controls discovered in a project's label config.
 
-    Each entry has ``from_name``, ``to_name``, ``result_type``, ``value_key``,
-    and ``labels`` (set of valid label names).
+    Holds a flat list of control entries (see :func:`_make_control`) and resolves
+    a ``--map-bbox`` / ``--map-seg`` value to exactly one of them.
     """
 
-    def __init__(self, entries: dict[str, dict]):
-        self.entries = entries
+    def __init__(self, entries: list[dict]):
+        self.entries = list(entries)
+        self._by_name = {e['from_name']: e for e in self.entries}
 
-    def __contains__(self, kind: str) -> bool:
-        return kind in self.entries
+    def __iter__(self):
+        return iter(self.entries)
 
-    def __getitem__(self, kind: str) -> dict:
-        if kind not in self.entries:
-            raise KeyError(f"No {kind} control in label config. "
-                           f"Available: {sorted(self.entries)}")
-        return self.entries[kind]
+    @property
+    def names(self) -> list[str]:
+        return [e['from_name'] for e in self.entries]
 
-    def preferred_segmentation(self) -> str:
-        """Return 'brush' if available, else 'polygon'. Errors if neither."""
-        for kind in ('brush', 'polygon'):
-            if kind in self.entries:
-                return kind
-        raise ValueError("No segmentation control (brush or polygon) in label config")
+    def resolve(self, value: str, *, families: frozenset, what: str) -> dict:
+        """Resolve a map value to one control restricted to ``families``.
+
+        ``value`` is first matched against control names (``from_name``); failing
+        that, it is treated as a tag *type* (one of :data:`_CONTROL_TAGS`) and
+        matched by type. A type with exactly one matching control resolves to it;
+        more than one is ambiguous (lists the names); none is an error. The
+        resolved control's family must be in ``families``.
+        """
+        # 1) by control name
+        ctrl = self._by_name.get(value)
+        if ctrl is not None:
+            if ctrl['family'] not in families:
+                raise ValueError(
+                    f"{what} target {value!r} is a {ctrl['type_key']} control, "
+                    f"not usable here (need one of: {sorted(families)})")
+            return ctrl
+
+        # 2) by tag type
+        type_key = value.lower()
+        if type_key in _CONTROL_TAGS:
+            family = _CONTROL_TAGS[type_key][0]
+            if family not in families:
+                raise ValueError(
+                    f"{what} target type {value!r} is {family}, not usable here "
+                    f"(need one of: {sorted(families)})")
+            matches = [e for e in self.entries if e['type_key'] == type_key]
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                raise ValueError(
+                    f"{what} target type {value!r} is ambiguous — the project "
+                    f"has {len(matches)} {value} controls: "
+                    f"{[m['from_name'] for m in matches]}. Use a specific name.")
+            raise ValueError(
+                f"{what} target type {value!r} has no control in the label "
+                f"config. Available controls: {self._eligible(families)}")
+
+        # 3) neither a name nor a known tag type
+        raise ValueError(
+            f"{what} target {value!r} is neither a control name nor a mappable "
+            f"tag type ({sorted(_CONTROL_TAGS)}). "
+            f"Available controls: {self._eligible(families)}")
+
+    def _eligible(self, families: frozenset) -> list[str]:
+        return [f"{e['from_name']} ({e['type_key']})"
+                for e in self.entries if e['family'] in families]
 
 
 def discover_controls(taskman: TaskManager) -> ControlMap:
-    """Inspect a TaskManager's LS project and return its rectangle/polygon/brush controls.
+    """Inspect a TaskManager's LS project and return its mappable controls.
 
     Reads ``parsed_label_config`` (a dict of ``{name: {type, to_name, labels, ...}}``)
-    and keeps the controls whose XML tag is one of :data:`_CONTROL_KINDS`.
+    and keeps the controls whose XML tag is one of :data:`_CONTROL_TAGS`.
     """
     parsed = taskman.config_asdict()
-    entries: dict[str, dict] = {}
+    entries: list[dict] = []
     for ctrl_name, info in parsed.items():
-        ctrl_type = str(info.get('type', '')).lower()
-        if ctrl_type not in _CONTROL_KINDS:
+        type_key = str(info.get('type', '')).lower()
+        if type_key not in _CONTROL_TAGS:
             continue
-        result_type, value_key = _CONTROL_KINDS[ctrl_type]
-        kind = ctrl_type.replace('labels', '')
         to_name = info.get('to_name')
         if isinstance(to_name, list):
             to_name = to_name[0]
-        entries[kind] = {
-            'from_name': ctrl_name,
-            'to_name': to_name,
-            'result_type': result_type,
-            'value_key': value_key,
-            'labels': set(info.get('labels', [])),
-        }
+        entries.append(_make_control(
+            ctrl_name, to_name, type_key, info.get('labels', ())))
     return ControlMap(entries)
 
 
@@ -265,34 +327,33 @@ def _brush_value(segmentation: Any, img_w: int, img_h: int) -> dict:
     return {'format': 'rle', 'rle': rle}
 
 
-DEFAULT_KINDS: tuple[str, ...] = ('bbox', 'mask')
-
-
-def coco_anno_to_ls_results(annotation: dict, image: dict,
-                            controls: ControlMap, *,
+def coco_anno_to_ls_results(annotation: dict, image: dict, *,
                             region_id: str,
-                            kinds: tuple[str, ...] = DEFAULT_KINDS,
-                            segmentation_kind: Optional[str] = None,
+                            bbox_ctrl: Optional[dict] = None,
+                            seg_ctrl: Optional[dict] = None,
                             score: Optional[float] = None,
                             polygon_epsilon: Optional[float] = None,
                             polygon_max_points: Optional[int] = None,
                             polygon_stats: Optional[list] = None) -> list[dict]:
     """Build LS result dicts for one COCO annotation.
 
-    Emits a rectangle result (if ``'bbox'`` in ``kinds``, a rectangle control
-    exists, and the annotation has a bbox) and/or a segmentation result (if
-    ``'mask'`` in ``kinds`` and the annotation has segmentation). All result
-    entries share ``region_id``.
+    Emits a rectangle result on ``bbox_ctrl`` (if given and the annotation has a
+    bbox) and/or a segmentation result on ``seg_ctrl`` (if given and the
+    annotation has segmentation). ``seg_ctrl['family']`` ('polygon' or 'brush')
+    selects the segmentation encoding. All result entries share ``region_id``.
 
-    ``polygon_epsilon`` / ``polygon_max_points`` are forwarded to
-    :func:`_polygon_value` for the polygon segmentation path only.
+    A control with ``value_key=None`` (a bare ``<Rectangle>``/``<Polygon>``/
+    ``<Brush>`` tag) carries no label list, so its result omits the category
+    name. ``polygon_epsilon`` / ``polygon_max_points`` apply to the polygon path.
     """
     img_w, img_h = image['width'], image['height']
     label = annotation['_category_name']  # injected by build_predictions
     score = score if score is not None else annotation.get('score')
 
     def shell(ctrl: dict, value: dict) -> dict:
-        value = {**value, ctrl['value_key']: [label]}
+        value = dict(value)
+        if ctrl['value_key'] is not None:
+            value[ctrl['value_key']] = [label]
         out = {
             'id': region_id,
             'type': ctrl['result_type'],
@@ -308,24 +369,19 @@ def coco_anno_to_ls_results(annotation: dict, image: dict,
         return out
 
     results: list[dict] = []
-    if 'bbox' in kinds and 'rectangle' in controls and 'bbox' in annotation:
-        results.append(shell(controls['rectangle'],
-                             _bbox_value(annotation['bbox'], img_w, img_h)))
+    if bbox_ctrl is not None and 'bbox' in annotation:
+        results.append(shell(bbox_ctrl, _bbox_value(annotation['bbox'], img_w, img_h)))
 
     seg = annotation.get('segmentation')
-    if 'mask' in kinds and seg:
-        kind = segmentation_kind or controls.preferred_segmentation()
-        if kind == 'polygon':
-            results.append(shell(controls['polygon'],
+    if seg_ctrl is not None and seg:
+        if seg_ctrl['family'] == 'polygon':
+            results.append(shell(seg_ctrl,
                                  _polygon_value(seg, img_w, img_h,
                                                 epsilon=polygon_epsilon,
                                                 max_points=polygon_max_points,
                                                 stats=polygon_stats)))
-        elif kind == 'brush':
-            results.append(shell(controls['brush'],
-                                 _brush_value(seg, img_w, img_h)))
-        else:
-            raise ValueError(f"unsupported segmentation_kind: {kind!r}")
+        else:  # brush
+            results.append(shell(seg_ctrl, _brush_value(seg, img_w, img_h)))
     return results
 
 
@@ -366,11 +422,11 @@ def ensure_s3_images(s3_client, bucket: str, prefix: str,
 # Task / prediction builders
 # ---------------------------------------------------------------------------
 
-def build_prediction(image: dict, annotations: list[dict], controls: ControlMap,
-                     *, region_id_pattern: str, model_version: str,
+def build_prediction(image: dict, annotations: list[dict], *,
+                     region_id_pattern: str, model_version: str,
+                     bbox_ctrl: Optional[dict] = None,
+                     seg_ctrl: Optional[dict] = None,
                      coco_info: Optional[dict] = None,
-                     kinds: tuple[str, ...] = DEFAULT_KINDS,
-                     segmentation_kind: Optional[str] = None,
                      polygon_epsilon: Optional[float] = None,
                      polygon_max_points: Optional[int] = None,
                      polygon_stats: Optional[list] = None) -> dict:
@@ -380,8 +436,8 @@ def build_prediction(image: dict, annotations: list[dict], controls: ControlMap,
     for anno in annotations:
         rid = format_pattern(region_id_pattern, annotation=anno, **scope_extras)
         results.extend(coco_anno_to_ls_results(
-            anno, image, controls,
-            region_id=rid, kinds=kinds, segmentation_kind=segmentation_kind,
+            anno, image,
+            region_id=rid, bbox_ctrl=bbox_ctrl, seg_ctrl=seg_ctrl,
             polygon_epsilon=polygon_epsilon,
             polygon_max_points=polygon_max_points,
             polygon_stats=polygon_stats))
@@ -420,22 +476,41 @@ def _annotate_category_names(annotations: list[dict], cat_by_id: dict[int, str])
         a['_category_name'] = cat_by_id[a['category_id']]
 
 
-def _check_categories(coco: dict, controls: ControlMap,
-                      kinds: tuple[str, ...],
-                      seg_kind: Optional[str]) -> None:
-    """Ensure every COCO category name is a valid label on every control we'll write to."""
+def _check_categories(coco: dict, controls: list[dict]) -> None:
+    """Ensure every COCO category name is a valid label on each *labeled* target.
+
+    Bare (label-less) controls carry no label list, so there is nothing to
+    validate against — they are skipped.
+    """
     cat_names = {c['name'] for c in coco.get('categories', [])}
-    needed_controls = []
-    if 'bbox' in kinds and 'rectangle' in controls:
-        needed_controls.append(controls['rectangle'])
-    if 'mask' in kinds and seg_kind is not None:
-        needed_controls.append(controls[seg_kind])
-    for ctrl in needed_controls:
+    for ctrl in controls:
+        if ctrl['value_key'] is None:
+            continue
         missing = cat_names - ctrl['labels']
         if missing:
             raise ValueError(
                 f"COCO categories {sorted(missing)} are not in "
                 f"{ctrl['from_name']!r} labels {sorted(ctrl['labels'])}")
+
+
+def _resolve_model_version(model_version: Optional[str], coco: dict) -> str:
+    """Resolve a ``model_version`` template against the COCO ``info`` scope.
+
+    A falsy ``model_version`` falls back to ``{info.description}-{info.date_created}``
+    (best effort). Otherwise the string is treated as a :func:`format_pattern`
+    template over the ``info`` scope; a token referencing missing info raises.
+    """
+    info = coco.get('info') or {}
+    if not model_version:
+        desc = info.get('description') or 'coco'
+        date = info.get('date_created')
+        return f"{desc}-{date}" if date else desc
+    try:
+        return format_pattern(model_version, info=info)
+    except KeyError as e:
+        raise ValueError(
+            f"model_version template {model_version!r} references COCO info "
+            f"that is missing: {e}") from e
 
 
 def _load_coco(coco_path: Union[str, os.PathLike]) -> dict:
@@ -470,49 +545,60 @@ def push_coco(taskman: TaskManager, coco_path: Union[str, os.PathLike],
               image_dir: Union[str, os.PathLike], *,
               s3_prefix: str,
               region_id_pattern: str = "{annotation.id}",
-              model_version: str = "coco-push",
+              model_version: Optional[str] = None,
+              map_bbox: Optional[str] = None,
+              map_seg: Optional[str] = None,
               include: Optional[Iterable[str]] = None,
               exclude: Optional[Iterable[str]] = None,
-              kinds: tuple[str, ...] = DEFAULT_KINDS,
-              segmentation_kind: Optional[str] = None,
               polygon_epsilon: Optional[float] = None,
               polygon_max_points: Optional[int] = None,
               dry_run: bool = False,
               pk_field: Optional[str] = None) -> dict:
     """Generic COCO → Label Studio push.
 
-    1. Filter images via include/exclude.
-    2. Verify every selected image's category names match the LS label config.
-    3. Stage images to S3 (upload missing).
-    4. Build one task per image with one prediction (model_version).
-    5. Create tasks via TaskManager (dedups by pk).
+    1. Resolve ``map_bbox`` / ``map_seg`` to LS controls in the project.
+    2. Filter images via include/exclude.
+    3. Verify every COCO category name is a valid label on each labeled target.
+    4. Stage images to S3 (upload missing).
+    5. Build one task per image with one prediction (model_version).
+    6. Create tasks via TaskManager (dedups by pk).
 
-    ``kinds`` selects which result types to emit: ``('bbox',)`` for rectangle
-    only, ``('mask',)`` for segmentation only, default emits both.
+    ``map_bbox`` names a rectangle-family control to receive COCO bboxes;
+    ``map_seg`` names a polygon- or brush-family control to receive COCO
+    segmentations (the family decides polygon vs. brush encoding). Each value
+    may be a control name or a tag type (see :meth:`ControlMap.resolve`). At
+    least one of the two is required.
 
     ``polygon_epsilon`` / ``polygon_max_points`` enable Douglas-Peucker
-    simplification of polygon segmentations (no-op for brush/RLE). Left as
-    ``None`` the raw COCO polygons are pushed unchanged.
+    simplification of polygon segmentations (rejected for a brush ``map_seg``).
+    Left as ``None`` the raw COCO polygons are pushed unchanged.
     """
-    unknown_kinds = set(kinds) - {'bbox', 'mask'}
-    if unknown_kinds:
-        raise ValueError(f"unknown kinds: {sorted(unknown_kinds)} "
-                         f"(allowed: 'bbox', 'mask')")
-    if not kinds:
-        raise ValueError("kinds must contain at least one of 'bbox', 'mask'")
+    if not map_bbox and not map_seg:
+        raise ValueError(
+            "nothing to push: provide at least one of map_bbox / map_seg")
 
     coco = _load_coco(coco_path)
     cat_by_id = _coco_categories_by_id(coco)
 
     controls = discover_controls(taskman)
-    if 'bbox' in kinds and 'rectangle' not in controls:
+    bbox_ctrl = (controls.resolve(map_bbox, families=_BBOX_FAMILIES,
+                                  what='--map-bbox') if map_bbox else None)
+    seg_ctrl = (controls.resolve(map_seg, families=_SEG_FAMILIES,
+                                 what='--map-seg') if map_seg else None)
+
+    if (seg_ctrl is not None and seg_ctrl['family'] == 'brush'
+            and (polygon_epsilon is not None or polygon_max_points is not None)):
         raise ValueError(
-            "kinds includes 'bbox' but the LS project has no rectangle "
-            f"control. Available controls: {sorted(controls.entries)}")
-    seg_kind = None
-    if 'mask' in kinds:
-        seg_kind = segmentation_kind or controls.preferred_segmentation()
-    _check_categories(coco, controls, kinds, seg_kind)
+            f"polygon preprocessing was requested but --map-seg target "
+            f"{seg_ctrl['from_name']!r} is a brush control; brush segmentations "
+            f"are rasterized to RLE, not polygon-simplified")
+
+    seg_kind = seg_ctrl['family'] if seg_ctrl is not None else None
+    kinds = tuple(k for k, c in (('bbox', bbox_ctrl), ('mask', seg_ctrl))
+                  if c is not None)
+    _check_categories(coco, [c for c in (bbox_ctrl, seg_ctrl) if c is not None])
+
+    model_version = _resolve_model_version(model_version, coco)
 
     images = select_images(coco, include=include, exclude=exclude)
     if not images:
@@ -550,12 +636,12 @@ def push_coco(taskman: TaskManager, coco_path: Union[str, os.PathLike],
     for img in images:
         annos = annos_by_image[img['id']]
         pred = build_prediction(
-            img, annos, controls,
+            img, annos,
             region_id_pattern=region_id_pattern,
             model_version=model_version,
+            bbox_ctrl=bbox_ctrl,
+            seg_ctrl=seg_ctrl,
             coco_info=coco.get('info'),
-            kinds=kinds,
-            segmentation_kind=seg_kind,
             polygon_epsilon=polygon_epsilon,
             polygon_max_points=polygon_max_points,
             polygon_stats=polygon_stats)

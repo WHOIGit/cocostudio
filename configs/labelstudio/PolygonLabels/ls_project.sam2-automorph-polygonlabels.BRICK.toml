@@ -28,13 +28,17 @@ file_name_filter = "(?!)"
 scan_all_subfolders = true
 
 [ml_backend]
-name = "SAM2 BigImg"
-backend_url = "https://mlbackend.brick.whoi.edu/SAM2BigImg_brick/"
+name = "SAM2Plus (brick)"
+backend_url = "https://mlbackend.brick.whoi.edu/sam2plus/brick/"
 interactive = true
-extra_params = { crop_size = 1024, as_polygon = { epsilon = 1 } }
 start_training_on_annotation_update = false
 annotation_prelabeling = false
 exclude_existing_annotations = true
+
+[ml_backend.extra_params]
+subpatching   = { patch_size = 1024 }
+postprocess   = { mask_size_threshold = 1, dilate = 0.05 }
+return_format = { type = "PolygonLabels", epsilon = 1, max-points = 100 }
 
 [annotations]
 instructions = ""

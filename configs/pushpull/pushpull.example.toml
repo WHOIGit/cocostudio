@@ -1,0 +1,40 @@
+# Stub cocostudio push/pull config (read by `cocostudio push -c <this file>`).
+#
+# Shape: shared keys at the top level; per-command keys under [push] (a future
+# [pull] section will follow the same pattern). Every key is the long form of a
+# CLI flag (map_bbox <-> --map-bbox); any flag passed on the command line
+# overrides the value here.
+
+# --- shared (used by push and pull) ---------------------------------------
+ls_config = ""                            # REQUIRED — path to the LS-project TOML (--ls-config).
+s3_prefix = ""                            # Optional — S3 key prefix. Remove to use the
+                                          #   LS project's [[storage]].bucket_prefix.
+region_id_pattern = "{annotation.id}"     # Pattern for LS region IDs; {scope.dotted.path}
+                                          #   tokens resolve against annotation/image/info.
+
+[push]
+coco      = ""                            # REQUIRED — COCO JSON file.
+image_dir = ""                            # REQUIRED — local image dir; file_names match COCO.
+
+# LS prediction model_version. {info.*} tokens resolve against COCO info;
+# a referenced-but-missing info field is an error. Remove to derive from COCO info.
+model_version = "{info.description}-{info.date_created}"
+
+# Annotation -> Label Studio tag mapping. At least one of map_bbox / map_seg is
+# REQUIRED. Each value is either a control name (from_name) or a tag type
+# (Rectangle, RectangleLabels, Polygon, PolygonLabels, Brush, BrushLabels); a
+# bare type resolves only if exactly one such control exists in the project.
+map_bbox = ""                             # rectangle-family control for COCO bboxes.
+map_seg  = ""                             # polygon/brush-family control for segmentations
+                                          #   (its type decides polygon vs brush encoding).
+
+# Polygon preprocessing (only valid when map_seg is a polygon-family control).
+# Douglas-Peucker simplification: epsilon <1 = fraction of perimeter, >=1 = pixels;
+# maxpoints caps vertices (0 disables). Remove both to push raw polygons.
+# polygon_preprocess_epsilon   = 0.003
+# polygon_preprocess_maxpoints = 50
+
+# Per-run selection / mode (also overridable on the CLI).
+# include = []                            # image id, file_name, or stem(s) to include.
+# exclude = []                            # image id, file_name, or stem(s) to exclude.
+dry_run = false                           # Plan only — no S3 uploads, no LS task creation.
