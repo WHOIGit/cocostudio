@@ -5,7 +5,7 @@
 # `bbox` (output) — so map_bbox must name `bbox` explicitly; the bare type
 # "RectangleLabels" would be ambiguous and error.
 
-ls_config = "configs/labelstudio/RectangleLabels/ls_project.sam2-automorph-rectanglelabels.BRICK.toml"
+ls_config = "configs/labelstudio/RectangleLabels/ls_project.sam2-automorph-rectanglelabels.ICHTH.toml"
 # s3_prefix omitted -> uses the project's [[storage]].bucket_prefix.
 region_id_pattern = "roi_{annotation.meta.roi_id}"
 

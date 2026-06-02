@@ -1,0 +1,44 @@
+host = "https://ichthyolith.whoi.edu"
+project = "sam2dirty cleanup - RectangleLabels"
+label_config = "RectangleLabels/label-ui_rectanglelabels.xml"
+auth = "../ls_auth.toml"
+
+[labelstudio-tools]
+pk = "image"
+cache = "RAM"
+s3_https_suppress = true  # LS server needs https in storage endpoint_url; local boto3 only works with http for vast.whoi.edu
+
+[general]
+description = "Used to review fullframe-rois"
+task_sampling = "sequential"
+color = "#FF4C25"  # Red
+
+[[storage]]
+type = "s3"
+mode = "source"
+title = "ichthyolith storage"
+bucket = "ichthyolith"
+endpoint_url = "https://vast.whoi.edu"
+bucket_prefix = "fullframe_halfsizejpg_cannonical"
+presigned_urls = true
+presigned_urls_expiry = 15
+import_method = "tasks"
+file_name_filter = "(?!)"
+scan_all_subfolders = true
+
+[ml_backend]
+name = "SAM2Plus (ichthyolith)"
+backend_url = "https://mlbackend.brick.whoi.edu/sam2plus/ichthyolith/"
+interactive = true
+start_training_on_annotation_update = false
+annotation_prelabeling = false
+exclude_existing_annotations = true
+
+[ml_backend.extra_params]
+subpatching   = { patch_size = 1024 }
+postprocess   = { mask_size_threshold = 1, dilate = 0.05 }
+return_format = { type = "RectangleLabels" }
+
+[annotations]
+instructions = ""
+show_before_labeling = false

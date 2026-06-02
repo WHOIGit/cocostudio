@@ -17,3 +17,4 @@ ls_auth.*.toml
 # temp
 configs/labelstudio/denticle.Type.Taxonomy.json
 configs/labelstudio/ls_auth.toml
+notes2.txt
