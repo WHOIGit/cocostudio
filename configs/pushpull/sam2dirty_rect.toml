@@ -14,3 +14,21 @@ coco          = "data/from_cleanup/sam2-coco-small.json"
 image_dir     = "data/from_cleanup/images-halfsizejpg"
 model_version = "sam2-automorph-rect-{info.date_created}"
 map_bbox      = "bbox"
+
+[pull]
+out_coco = "data/pulled/sam2dirty-rect.reviewed.coco.json"
+
+# Omit view to pull all tasks with submitted annotations; set to a Label Studio
+# view title/id when the review project has one.
+# view = "Reviewed"
+completed_only = true
+annotation_policy = "error"
+
+map_bbox = "bbox"
+label_policy = "match_push_coco"
+postprocess_function = "configs/pushpull/pull_postprocess_ichthyoliths.py:compute_coco_localization_meta"
+
+image_datafield = "image"
+download_missing_images = true
+ls_cache = "once"
+dry_run = false

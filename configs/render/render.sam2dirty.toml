@@ -8,8 +8,9 @@ text = "{obj_id:03}"
 tooth = "green"
 denticle = "blue"
 other = "purple"
-junk = "orange"
+junk = "cyan"
 unlabeled = "red"
+fragment = "orange"
 
 text_size = 16
 text_location = "top"

@@ -2,7 +2,7 @@
 
 import pytest
 
-from cocostudio.config import load_push_config
+from cocostudio.config import load_pull_config, load_push_config
 from cocostudio import cli
 
 
@@ -67,6 +67,50 @@ def test_push_not_a_table_raises(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# load_pull_config
+# ---------------------------------------------------------------------------
+
+def test_load_pull_flattens_and_inherits_push_paths(tmp_path):
+    p = _write(tmp_path, """
+ls_config = "x"
+[push]
+coco = "source.json"
+image_dir = "images"
+[pull]
+out_coco = "reviewed.json"
+map_bbox = "bbox"
+""")
+    assert load_pull_config(p) == {
+        "ls_config": "x",
+        "push_coco": "source.json",
+        "image_dir": "images",
+        "out_coco": "reviewed.json",
+        "map_bbox": "bbox",
+    }
+
+
+def test_load_pull_explicit_values_override_push_defaults(tmp_path):
+    p = _write(tmp_path, """
+[push]
+coco = "source.json"
+image_dir = "images"
+[pull]
+push_coco = "other.json"
+image_dir = "other-images"
+out_coco = "reviewed.json"
+""")
+    s = load_pull_config(p)
+    assert s["push_coco"] == "other.json"
+    assert s["image_dir"] == "other-images"
+
+
+def test_unknown_pull_key_raises(tmp_path):
+    p = _write(tmp_path, '[pull]\nbogus = 1\n')
+    with pytest.raises(ValueError, match=r"unknown \[pull\]"):
+        load_pull_config(p)
+
+
+# ---------------------------------------------------------------------------
 # CLI precedence: defaults < config < explicit flags
 # ---------------------------------------------------------------------------
 
@@ -104,6 +148,33 @@ def test_dry_run_config_true_then_no_dry_run(tmp_path):
     assert _settings(tmp_path, cfg, [])["dry_run"] is True
     assert _settings(tmp_path, cfg, ["--no-dry-run"])["dry_run"] is False
     assert _settings(tmp_path, cfg, ["--dry-run"])["dry_run"] is True
+
+
+def _pull_settings(tmp_path, config_text, argv_extra):
+    cfg = _write(tmp_path, config_text)
+    args = cli._build_parser().parse_args(["pull", "-c", cfg, *argv_extra])
+    return cli._merge_pull_settings(args)
+
+
+def test_pull_defaults_cache_id_to_config_json(tmp_path):
+    s = _pull_settings(
+        tmp_path,
+        'ls_config="x"\n[pull]\nout_coco="out.json"\nmap_bbox="bbox"\n',
+        [],
+    )
+    assert s["cache_id"] == "c.json"
+    assert s["completed_only"] is True
+    assert s["ls_cache"] == "once"
+
+
+def test_pull_cli_flag_overrides_config(tmp_path):
+    s = _pull_settings(
+        tmp_path,
+        'ls_config="x"\n[pull]\nout_coco="out.json"\nmap_bbox="bbox"\nls_cache="once"\n',
+        ["--ls-cache", "clobber", "--no-completed-only"],
+    )
+    assert s["ls_cache"] == "clobber"
+    assert s["completed_only"] is False
 
 
 # ---------------------------------------------------------------------------

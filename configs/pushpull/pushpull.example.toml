@@ -1,9 +1,8 @@
 # Stub cocostudio push/pull config (read by `cocostudio push -c <this file>`).
 #
-# Shape: shared keys at the top level; per-command keys under [push] (a future
-# [pull] section will follow the same pattern). Every key is the long form of a
-# CLI flag (map_bbox <-> --map-bbox); any flag passed on the command line
-# overrides the value here.
+# Shape: shared keys at the top level; per-command keys under [push] and [pull].
+# Every key is the long form of a CLI flag (map_bbox <-> --map-bbox); any flag
+# passed on the command line overrides the value here.
 
 # --- shared (used by push and pull) ---------------------------------------
 ls_config = ""                            # REQUIRED — path to the LS-project TOML (--ls-config).
@@ -38,3 +37,48 @@ map_seg  = ""                             # polygon/brush-family control for seg
 # include = []                            # image id, file_name, or stem(s) to include.
 # exclude = []                            # image id, file_name, or stem(s) to exclude.
 dry_run = false                           # Plan only — no S3 uploads, no LS task creation.
+
+[pull]
+out_coco = ""                             # REQUIRED — reviewed COCO JSON output file.
+
+# Pull defaults to [push].coco for source categories/image ids and [push].image_dir
+# for local image checks. Override here only when pulling against a different
+# source/export than the push section.
+# push_coco = ""
+# image_dir = ""
+
+# Task download selection. Omit view to scan the whole project; completed_only
+# keeps only submitted annotations (not drafts). When more than one submitted
+# annotation exists for a task, annotation_policy decides the behavior.
+# view = "Reviewed"
+completed_only = true
+annotation_policy = "error"               # error | skip | latest | earliest
+
+# Raw Label Studio task export cache. "never" keeps it in memory only; "once"
+# uses an existing cache or writes one on first download; "clobber" always
+# downloads fresh and overwrites the cache. Cache path:
+# cocostudio/cache/<hostname>/<project-name>/<cache-id>.json
+ls_cache = "once"                         # never | once | clobber
+# cache_id = "custom-name"                # Default: this config filename with .json.
+
+# Label policy. match_push_coco validates the mapped LS control labels against
+# push_coco categories before task download; allow_any synthesizes/extends
+# categories from pulled labels.
+label_policy = "match_push_coco"          # match_push_coco | allow_any
+# Optional COCO postprocess hook. The function receives the whole COCO dict and
+# may mutate it in place or return a replacement dict. Use this for
+# project-specific metadata, e.g. deriving local roi_id/obj_id fields.
+# postprocess_function = "configs/pushpull/pull_postprocess_project.py:postprocess"
+
+# LS tag mapping for pull. At least one of map_bbox / map_seg is required.
+# v1 only converts bboxes; map_seg is accepted for config symmetry but raises
+# NotImplementedError until segmentation pull is implemented.
+map_bbox = ""
+# map_seg = ""
+
+# Image availability. If image_dir/file_name is missing and
+# download_missing_images=true, pull downloads from task data.<image_datafield>.
+image_datafield = "image"
+download_missing_images = false
+
+dry_run = false                           # Plan only — no COCO/cache/image writes.

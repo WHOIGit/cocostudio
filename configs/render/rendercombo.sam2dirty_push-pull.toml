@@ -1,0 +1,20 @@
+render_a = "configs/render/render.sam2dirty.toml"
+render_b = "configs/render/render.sam2dirty.toml"
+coco_a = "data/from_cleanup/sam2-coco-small.json"
+coco_b = "data/pulled/sam2dirty-rect.reviewed.coco.json"
+output = "data/render/combo-push-pull/{FILE_STEM}.jpg"
+clobber = true
+mask_enable = false
+
+text_b = "{roi_id:03}"
+
+[style-a]
+bbox = "cyan"
+
+[style-b]
+bbox = "red"
+text_align = 
+
+# Run from the cocostudio/ directory:
+# coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml
+# coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml --dry-run
