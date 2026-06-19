@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from cocostudio.pull import (
+    _bbox_result_to_coco_annotation,
     apply_postprocess_function,
     build_coco_from_tasks,
     cache_path_for,
@@ -157,6 +158,32 @@ def test_build_coco_from_tasks_bbox_and_metadata():
     assert anno["meta"]["ls_region_id"] == "roi_img_obj00001_plane000"
     assert "roi_id" not in anno["meta"]
     assert "obj_id" not in anno["meta"]
+
+
+def test_bbox_conversion_rounds_float_noise():
+    result = {
+        "id": "roi_1",
+        "original_width": 5000,
+        "original_height": 1000,
+        "value": {
+            "x": 87.79,
+            "y": 28.7,
+            "width": 4.569999999999999,
+            "height": 23.299999999999994,
+            "rectanglelabels": ["tooth"],
+        },
+    }
+
+    anno = _bbox_result_to_coco_annotation(
+        result,
+        image={"id": 1, "width": 5000, "height": 1000},
+        annotation_id=2,
+        category_id=1,
+        ls_annotation={"id": 777},
+    )
+
+    assert anno["bbox"] == [4389.5, 287.0, 228.5, 233.0]
+    assert anno["area"] == 53240.5
 
 
 def test_postprocess_function_can_add_project_metadata():

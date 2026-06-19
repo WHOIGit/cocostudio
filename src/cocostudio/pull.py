@@ -23,6 +23,7 @@ from .push import _BBOX_FAMILIES, discover_controls
 _CACHE_MODES = frozenset({"never", "once", "clobber"})
 _ANNOTATION_POLICIES = frozenset({"error", "skip", "latest", "earliest"})
 _LABEL_POLICIES = frozenset({"match_push_coco", "allow_any"})
+COCO_FLOAT_PRECISION = 9
 
 
 def cache_path_for(taskman: TaskManager,
@@ -433,10 +434,10 @@ def _bbox_result_to_coco_annotation(result: dict, *, image: dict,
     value = result.get("value") or {}
     img_w = float(result.get("original_width") or image["width"])
     img_h = float(result.get("original_height") or image["height"])
-    x = float(value["x"]) / 100.0 * img_w
-    y = float(value["y"]) / 100.0 * img_h
-    w = float(value["width"]) / 100.0 * img_w
-    h = float(value["height"]) / 100.0 * img_h
+    x = _round_coco_float(float(value["x"]) / 100.0 * img_w)
+    y = _round_coco_float(float(value["y"]) / 100.0 * img_h)
+    w = _round_coco_float(float(value["width"]) / 100.0 * img_w)
+    h = _round_coco_float(float(value["height"]) / 100.0 * img_h)
     meta = {
         "ls_region_id": result.get("id"),
         "ls_annotation_id": ls_annotation.get("id"),
@@ -449,13 +450,17 @@ def _bbox_result_to_coco_annotation(result: dict, *, image: dict,
         "image_id": image["id"],
         "category_id": category_id,
         "bbox": [x, y, w, h],
-        "area": w * h,
+        "area": _round_coco_float(w * h),
         "iscrowd": 0,
         "meta": {k: v for k, v in meta.items() if v is not None},
     }
     if "score" in result:
         out["score"] = float(result["score"])
     return out
+
+
+def _round_coco_float(value: float) -> float:
+    return round(value, COCO_FLOAT_PRECISION)
 
 
 def apply_postprocess_function(coco: dict, spec: Optional[str], *,
