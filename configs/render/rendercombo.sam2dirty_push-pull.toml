@@ -6,14 +6,11 @@ output = "data/render/combo-push-pull/{FILE_STEM}.jpg"
 clobber = true
 mask_enable = false
 
-text_b = "{roi_id:03}"
-
 [style-a]
 bbox = "cyan"
 
 [style-b]
 bbox = "red"
-text_align = 
 
 # Run from the cocostudio/ directory:
 # coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml
