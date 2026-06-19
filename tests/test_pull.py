@@ -1,5 +1,6 @@
 """Pure/local tests for cocostudio.pull."""
 
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
@@ -158,6 +159,75 @@ def test_build_coco_from_tasks_bbox_and_metadata():
     assert anno["meta"]["ls_region_id"] == "roi_img_obj00001_plane000"
     assert "roi_id" not in anno["meta"]
     assert "obj_id" not in anno["meta"]
+
+
+def test_build_coco_reuses_source_annotation_ids_by_image_bbox():
+    source_coco = _source_coco()
+    source_coco["annotations"] = [
+        {"id": 17, "image_id": 42, "category_id": 1, "bbox": [20.0, 20.0, 60.0, 40.0]},
+        {"id": 20, "image_id": 42, "category_id": 1, "bbox": [1.0, 2.0, 3.0, 4.0]},
+    ]
+    task = deepcopy(_task())
+    task["annotations"][0]["result"].append({
+        "id": "roi_new",
+        "type": "rectanglelabels",
+        "from_name": "bbox",
+        "to_name": "image",
+        "original_width": 200,
+        "original_height": 100,
+        "value": {
+            "x": 50,
+            "y": 10,
+            "width": 5,
+            "height": 5,
+            "rectanglelabels": ["tooth"],
+        },
+    })
+
+    coco, _report = build_coco_from_tasks(
+        [task],
+        source_coco=source_coco,
+        bbox_ctrl=_bbox_ctrl(),
+        label_policy="match_push_coco",
+        image_datafield="image",
+        image_dir=None,
+        download_missing_images=False,
+        taskman=FakeTaskManager(),
+        completed_only=True,
+        annotation_policy="error",
+    )
+
+    assert [anno["id"] for anno in coco["annotations"]] == [17, 21]
+    assert coco["annotations"][0]["bbox"] == [20.0, 20.0, 60.0, 40.0]
+    assert coco["annotations"][1]["bbox"] == [100.0, 10.0, 10.0, 5.0]
+
+
+def test_build_coco_prefers_source_annotation_ids_by_region_id():
+    source_coco = _source_coco()
+    source_coco["annotations"] = [{
+        "id": 17,
+        "image_id": 42,
+        "category_id": 1,
+        "bbox": [1.0, 2.0, 3.0, 4.0],
+        "meta": {"roi_id": "img_obj00001_plane000"},
+    }]
+
+    coco, _report = build_coco_from_tasks(
+        [_task()],
+        source_coco=source_coco,
+        bbox_ctrl=_bbox_ctrl(),
+        label_policy="match_push_coco",
+        region_id_pattern="roi_{annotation.meta.roi_id}",
+        image_datafield="image",
+        image_dir=None,
+        download_missing_images=False,
+        taskman=FakeTaskManager(),
+        completed_only=True,
+        annotation_policy="error",
+    )
+
+    assert coco["annotations"][0]["id"] == 17
+    assert coco["annotations"][0]["bbox"] == [20.0, 20.0, 60.0, 40.0]
 
 
 def test_bbox_conversion_rounds_float_noise():

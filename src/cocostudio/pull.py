@@ -17,7 +17,7 @@ import cv2
 
 from labelstudio_tools import TaskManager
 
-from .push import _BBOX_FAMILIES, discover_controls
+from .push import _BBOX_FAMILIES, discover_controls, format_pattern
 
 
 _CACHE_MODES = frozenset({"never", "once", "clobber"})
@@ -181,6 +181,7 @@ def validate_label_policy(label_policy: str, source_coco: Optional[dict],
 
 def build_coco_from_tasks(tasks: list[dict], *, source_coco: Optional[dict],
                           bbox_ctrl: Optional[dict], label_policy: str,
+                          region_id_pattern: Optional[str] = None,
                           image_datafield: str, image_dir: Optional[Union[str, os.PathLike]],
                           download_missing_images: bool, taskman: TaskManager,
                           completed_only: bool, annotation_policy: str,
@@ -195,7 +196,11 @@ def build_coco_from_tasks(tasks: list[dict], *, source_coco: Optional[dict],
     out_annotations: list[dict] = []
     image_ids_by_name: dict[str, int] = {}
     next_image_id = max((img["id"] for img in source_images.values()), default=0) + 1
-    next_annotation_id = 1
+    source_region_annotation_ids, source_bbox_annotation_ids, max_source_annotation_id = (
+        _source_annotation_ids(source_coco, region_id_pattern=region_id_pattern)
+    )
+    used_source_annotation_ids: set[int] = set()
+    next_annotation_id = max_source_annotation_id + 1
     selected_task_count = 0
     skipped_empty = 0
     skipped_multiple = 0
@@ -254,14 +259,25 @@ def build_coco_from_tasks(tasks: list[dict], *, source_coco: Optional[dict],
                 category_by_name[label] = next_category_id
                 categories.append({"id": next_category_id, "name": label})
                 next_category_id += 1
-            out_annotations.append(_bbox_result_to_coco_annotation(
+            provisional_annotation = _bbox_result_to_coco_annotation(
                 result,
                 image=image,
                 annotation_id=next_annotation_id,
                 category_id=category_by_name[label],
                 ls_annotation=annotation,
-            ))
-            next_annotation_id += 1
+            )
+            source_id = _pop_matching_source_annotation_id(
+                source_region_annotation_ids,
+                source_bbox_annotation_ids,
+                provisional_annotation,
+                used_source_annotation_ids,
+            )
+            if source_id is not None:
+                provisional_annotation["id"] = source_id
+                used_source_annotation_ids.add(source_id)
+            else:
+                next_annotation_id += 1
+            out_annotations.append(provisional_annotation)
 
     if image_report["missing_local"] and not dry_run:
         missing = image_report["missing_local"]
@@ -295,6 +311,102 @@ def build_coco_from_tasks(tasks: list[dict], *, source_coco: Optional[dict],
         },
     }
     return coco, report
+
+
+def _source_annotation_ids(
+        source_coco: Optional[dict],
+        *,
+        region_id_pattern: Optional[str]) -> tuple[
+            dict[tuple[int, str], list[int]],
+            dict[tuple[int, tuple[float, ...]], list[int]],
+            int,
+        ]:
+    if not source_coco:
+        return {}, {}, 0
+
+    source_images_by_id = {
+        int(image["id"]): image
+        for image in source_coco.get("images", [])
+        if image.get("id") is not None
+    }
+    ids_by_region: dict[tuple[int, str], list[int]] = {}
+    ids_by_bbox: dict[tuple[int, tuple[float, ...]], list[int]] = {}
+    max_annotation_id = 0
+    for annotation in source_coco.get("annotations", []):
+        annotation_id = annotation.get("id")
+        bbox = annotation.get("bbox")
+        image_id = annotation.get("image_id")
+        if annotation_id is None:
+            continue
+        annotation_id = int(annotation_id)
+        max_annotation_id = max(max_annotation_id, annotation_id)
+        if image_id is None:
+            continue
+        image_id = int(image_id)
+
+        region_id = _source_region_id(
+            annotation, image=source_images_by_id.get(image_id),
+            source_coco=source_coco, region_id_pattern=region_id_pattern)
+        if region_id is not None:
+            ids_by_region.setdefault((image_id, region_id), []).append(annotation_id)
+
+        if isinstance(bbox, list) and len(bbox) == 4:
+            key = (image_id, _bbox_key(bbox))
+            ids_by_bbox.setdefault(key, []).append(annotation_id)
+    return ids_by_region, ids_by_bbox, max_annotation_id
+
+
+def _source_region_id(annotation: dict, *, image: Optional[dict],
+                      source_coco: dict,
+                      region_id_pattern: Optional[str]) -> Optional[str]:
+    if not region_id_pattern:
+        return None
+    try:
+        return format_pattern(
+            region_id_pattern,
+            annotation=annotation,
+            image=image or {},
+            info=source_coco.get("info") or {},
+        )
+    except KeyError:
+        return None
+
+
+def _pop_matching_source_annotation_id(
+        source_region_annotation_ids: dict[tuple[int, str], list[int]],
+        source_bbox_annotation_ids: dict[tuple[int, tuple[float, ...]], list[int]],
+        annotation: dict,
+        used_source_annotation_ids: set[int]) -> Optional[int]:
+    image_id = int(annotation["image_id"])
+    meta = annotation.get("meta") or {}
+    region_id = meta.get("ls_region_id") if isinstance(meta, dict) else None
+    candidates = (
+        source_region_annotation_ids.get((image_id, region_id))
+        if isinstance(region_id, str) else None
+    )
+    if candidates:
+        source_id = _pop_unused_source_id(candidates, used_source_annotation_ids)
+        if source_id is not None:
+            return source_id
+
+    key = (image_id, _bbox_key(annotation["bbox"]))
+    candidates = source_bbox_annotation_ids.get(key)
+    if not candidates:
+        return None
+    return _pop_unused_source_id(candidates, used_source_annotation_ids)
+
+
+def _pop_unused_source_id(candidates: list[int],
+                          used_source_annotation_ids: set[int]) -> Optional[int]:
+    while candidates:
+        source_id = candidates.pop(0)
+        if source_id not in used_source_annotation_ids:
+            return source_id
+    return None
+
+
+def _bbox_key(bbox: list) -> tuple[float, ...]:
+    return tuple(_round_coco_float(float(value)) for value in bbox)
 
 
 def _source_images_by_file_name(source_coco: Optional[dict]) -> dict[str, dict]:
@@ -544,6 +656,7 @@ def pull_coco(taskman: TaskManager, *, out_coco: Union[str, os.PathLike],
               view: Optional[Union[int, str]] = None, completed_only: bool = True,
               annotation_policy: str = "error", map_bbox: Optional[str] = None,
               map_seg: Optional[str] = None, label_policy: str = "match_push_coco",
+              region_id_pattern: Optional[str] = None,
               image_datafield: str = "image",
               image_dir: Optional[Union[str, os.PathLike]] = None,
               download_missing_images: bool = False, ls_cache: str = "once",
@@ -578,6 +691,7 @@ def pull_coco(taskman: TaskManager, *, out_coco: Union[str, os.PathLike],
         source_coco=source_coco,
         bbox_ctrl=bbox_ctrl,
         label_policy=label_policy,
+        region_id_pattern=region_id_pattern,
         image_datafield=image_datafield,
         image_dir=image_dir,
         download_missing_images=download_missing_images,

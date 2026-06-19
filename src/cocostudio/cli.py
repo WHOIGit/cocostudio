@@ -368,6 +368,7 @@ def pull_command(args: argparse.Namespace) -> int:
             map_bbox=settings["map_bbox"],
             map_seg=settings["map_seg"],
             label_policy=settings["label_policy"],
+            region_id_pattern=settings["region_id_pattern"],
             image_datafield=settings["image_datafield"],
             image_dir=settings["image_dir"],
             download_missing_images=bool(settings["download_missing_images"]),
