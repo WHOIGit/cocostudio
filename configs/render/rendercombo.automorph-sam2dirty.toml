@@ -4,11 +4,11 @@ output = "data/render/combo-automorph-sam2dirty/{FILE_STEM}.jpg"
 clobber = true
 
 # Side colors are CLI-only; run from the cocostudio/ directory:
-# coco-render-combo -c configs/render/rendercombo.automorph-sam2dirty.toml --color-a red --color-b cyan
+# coco-compare render -c configs/render/rendercombo.automorph-sam2dirty.toml --color-a red --color-b cyan
 # --include 101_U1553C_22R_1W_28-30cm_N2of2_Z200x
 #
 # Direct push/pull comparison without side render TOMLs:
-# coco-render-combo \
+# coco-compare render \
 #   --coco-a data/from_cleanup/sam2-coco-small.json \
 #   --coco-b data/pulled/sam2dirty-rect.reviewed.coco.json \
 #   --image-root data/from_cleanup/images-halfsizejpg \

@@ -2,7 +2,7 @@
 
 Push COCO predictions to Label Studio for human correction, then pull the
 refined annotations back into a COCO file for comparison with the original
-using `coconut-crab`'s `coco-render-combo`.
+using `coconut-crab`'s `coco-compare render`.
 
 ## Layout
 
@@ -16,7 +16,7 @@ cocostudio/
 │   │   ├── sam2dirty_brush.toml
 │   │   ├── sam2dirty_polygon.toml
 │   │   └── sam2dirty_rect.toml
-│   └── render/              # coco-render and coco-render-combo configs
+│   └── render/              # coco-render and coco-compare render configs
 ├── data/
 │   ├── from_cleanup -> ../cleanup-automorph/data/exports/coco
 │   └── render/
@@ -51,7 +51,7 @@ resync after changes to those packages' metadata.
 ## COCO Tools
 
 `coconut-crab` is installed by `reinstall_localdev.sh` and provides the
-`coco-inspect`, `coco-render`, and `coco-render-combo` commands.
+`coco-inspect`, `coco-render`, and `coco-compare` commands.
 
 Inspect a local cleanup export:
 
@@ -62,13 +62,13 @@ coco-inspect data/from_cleanup/automorph-coco-tiny.json --sum
 Render the Automorph/SAM2 comparison configured for this project:
 
 ```bash
-coco-render-combo -c configs/render/rendercombo.automorph-sam2dirty.toml
+coco-compare render -c configs/render/rendercombo.automorph-sam2dirty.toml
 ```
 
 Render the pushed-vs-pulled sam2dirty rectangle review:
 
 ```bash
-coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml
+coco-compare render -c configs/render/rendercombo.sam2dirty_push-pull.toml
 ```
 
 The render configs expect `data/from_cleanup` to point at the
@@ -84,7 +84,7 @@ them.
   shape.
 - `configs/labelstudio/*/ls_project.*.toml` configure Label Studio projects.
 - `configs/pushpull/pushpull.example.toml` documents the push/pull schema.
-- `configs/render/rendercombo.*.toml` configure `coco-render-combo` outputs.
+- `configs/render/rendercombo.*.toml` configure `coco-compare render` outputs.
 
 Local config and secret files should use names like:
 
@@ -190,7 +190,7 @@ return a replacement dict. `pull_postprocess_ichthyoliths.py` derives local
 After pulling, compare pushed and pulled annotations with:
 
 ```bash
-coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml
+coco-compare render -c configs/render/rendercombo.sam2dirty_push-pull.toml
 ```
 
 That combo config uses `render.sam2dirty.toml` as the formatting base for both

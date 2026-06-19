@@ -10,12 +10,12 @@ diff_iou_threshold = 1.0
 text = "{AB}:{CATEGORY}:{OBJ_ID:03}"
 
 [style-a]
-#bbox = "cyan"
+bbox = "cyan"
 
 [style-b]
-#bbox = "red"
+bbox = "red"
 text_align = "inside"
 
 # Run from the cocostudio/ directory:
-# coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml
-# coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml --dry-run
+# coco-compare render -c configs/render/rendercombo.sam2dirty_push-pull.toml
+# coco-compare render -c configs/render/rendercombo.sam2dirty_push-pull.toml --dry-run
