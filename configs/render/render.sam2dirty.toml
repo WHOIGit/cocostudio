@@ -13,4 +13,4 @@ unlabeled = "red"
 fragment = "orange"
 
 text_size = 16
-text_location = "top"
+text_align = "top-left-outside"

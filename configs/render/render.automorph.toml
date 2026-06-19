@@ -11,4 +11,4 @@ other = "purple"
 junk = "orange"
 unlabeled = "red"
 text_size = 16
-text_location = "top"
+text_align = "top-left-outside"

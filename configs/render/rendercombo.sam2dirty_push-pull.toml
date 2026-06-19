@@ -5,12 +5,14 @@ coco_b = "data/pulled/sam2dirty-rect.reviewed.coco.json"
 output = "data/render/combo-push-pull/{FILE_STEM}.jpg"
 clobber = true
 mask_enable = false
+text = "{CATEGORY}:{OBJ_ID:03}"
 
 [style-a]
 bbox = "cyan"
 
 [style-b]
 bbox = "red"
+text_align = "inside"
 
 # Run from the cocostudio/ directory:
 # coco-render-combo -c configs/render/rendercombo.sam2dirty_push-pull.toml
