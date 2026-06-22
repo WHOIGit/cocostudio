@@ -12,8 +12,9 @@ dependencies = [
     #"coconut-crab @ git+https://github.com/WHOIGit/coconut-crab.git",
     #"labelstudio-tools @ git+https://github.com/WHOIGit/labelstudio-tools.git",
     "numpy",
-    "opencv-python-headless",  # cv2.approxPolyDP for polygon simplification
+    "pillow",  # image dimensions in pull._image_size_from_disk
     "pycocotools",
+    "simplification",  # Douglas-Peucker polygon simplification in push._simplify_polygon
     "tqdm",
 ]
 

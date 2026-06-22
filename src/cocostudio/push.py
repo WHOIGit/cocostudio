@@ -15,9 +15,9 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Optional, Union
 
-import cv2
 import numpy as np
 from pycocotools import mask as mask_utils
+from simplification.cutil import simplify_coords
 from tqdm import tqdm
 
 from label_studio_sdk.converter.brush import mask2rle
@@ -243,6 +243,18 @@ def _bbox_value(bbox_xywh: tuple, img_w: int, img_h: int) -> dict:
 _EPSILON_SEARCH_STEPS = 12
 
 
+def _rdp_closed(points: np.ndarray, eps: float) -> list[float]:
+    """Ramer-Douglas-Peucker on a closed ring → flat ``[x, y, x, y, ...]`` list.
+
+    ``simplify_coords`` simplifies an open polyline, so the first vertex is
+    appended to close the ring before simplification and the duplicated closing
+    vertex is dropped from the result.
+    """
+    closed = np.vstack([points, points[:1]])
+    out = np.asarray(simplify_coords(closed, eps))[:-1]
+    return [float(c) for pt in out for c in pt]
+
+
 def _simplify_polygon(ring: list[float], epsilon: float,
                       max_points: Optional[int]) -> list[float]:
     """Douglas-Peucker simplification of a flat ``[x, y, x, y, ...]`` ring.
@@ -255,27 +267,29 @@ def _simplify_polygon(ring: list[float], epsilon: float,
     """
     if len(ring) // 2 <= 3:
         return ring
-    contour = np.array(ring, dtype=np.float32).reshape(-1, 1, 2)
-    perimeter = cv2.arcLength(contour, True)
+    pts = np.asarray(ring, dtype=np.float64).reshape(-1, 2)
+    # Closed ring: include the closing segment back to the first vertex.
+    seg = np.diff(pts, axis=0, append=pts[:1])
+    perimeter = float(np.linalg.norm(seg, axis=1).sum())
     if perimeter <= 0:
         return ring
     base_eps = epsilon * perimeter if epsilon < 1.0 else float(epsilon)
 
-    approx = cv2.approxPolyDP(contour, base_eps, True)
-    if max_points is not None and len(approx) > max_points:
+    approx = _rdp_closed(pts, base_eps)
+    if max_points is not None and len(approx) // 2 > max_points:
         lo, hi = base_eps, max(base_eps, perimeter)
         best = approx
         for _ in range(_EPSILON_SEARCH_STEPS):
             mid = (lo + hi) / 2.0
-            approx = cv2.approxPolyDP(contour, mid, True)
-            if len(approx) <= max_points:
+            approx = _rdp_closed(pts, mid)
+            if len(approx) // 2 <= max_points:
                 best, hi = approx, mid
             else:
                 lo = mid
         approx = best
-    if len(approx) < 3:  # over-simplified into a degenerate ring; keep original
+    if len(approx) // 2 < 3:  # over-simplified into a degenerate ring; keep original
         return ring
-    return [float(c) for pt in approx for c in pt[0]]
+    return approx
 
 
 def _polygon_value(segmentation: list, img_w: int, img_h: int, *,

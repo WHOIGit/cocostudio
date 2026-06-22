@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Union
 from urllib.parse import urlparse
 
-import cv2
+from PIL import Image
 
 from labelstudio_tools import TaskManager
 
@@ -481,10 +481,11 @@ def _task_image_size(data: dict, *, file_name: str,
 
 
 def _image_size_from_disk(path: Path) -> tuple[int, int]:
-    img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
-    if img is None:
-        raise ValueError(f"could not read image dimensions: {path}")
-    height, width = img.shape[:2]
+    try:
+        with Image.open(path) as img:
+            width, height = img.size
+    except Exception as exc:
+        raise ValueError(f"could not read image dimensions: {path}") from exc
     return int(width), int(height)
 
 
