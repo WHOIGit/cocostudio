@@ -14,7 +14,9 @@
 
   <View className="image-container">
     <Image name="image" value="$image" smoothing="false"
-           zoom="true" zoomControl="true"/>
+           zoom="true" zoomControl="true"
+           grid="true" gridSize="50" gridColor="#FFFFFF"
+    />
     <Header value="$fullframe_id"/>
     <Header value="..."/>
     <Header value="..."/>
