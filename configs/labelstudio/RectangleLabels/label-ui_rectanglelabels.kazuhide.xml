@@ -1,0 +1,18 @@
+<View>
+
+  <View className="label">
+    <RectangleLabels name="bbox" toName="image"
+                     smart="true" canRotate="false">
+      <Label value="ichthyolith" background="orange"/>
+    </RectangleLabels>
+  </View>
+
+  <View className="image-container">
+    <Image name="image" value="$image" smoothing="false"
+           zoom="true" zoomControl="true"
+           grid="true" gridSize="50" gridColor="#FFFFFF"
+    />
+    <Header value="$fullframe_id"/>
+  </View>
+
+</View>

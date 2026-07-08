@@ -1,0 +1,30 @@
+# Kazuhide DSDP-386 -> "kazuhide DSDP-386 - RectangleLabels" project.
+# Bbox-only: COCO bboxes land on the `bbox` output RectangleLabels control.
+# Segmentations are intentionally skipped (no map_seg).
+
+ls_config = "configs/labelstudio/RectangleLabels/ls_project.kazuhide-rectanglelabels.ICHTH.toml"
+# s3_prefix omitted -> uses the project's [[storage]].bucket_prefix (from_kazuhide_DSDP-386).
+region_id_pattern = "roi_{annotation.id}"
+
+[push]
+coco          = "data/from_kazuhide/kazuhide-coco.json"
+image_dir     = "data/from_kazuhide/images"
+model_version = "kazuhide-rect-{info.date_created}"
+map_bbox      = "bbox"
+dry_run       = false
+
+[pull]
+out_coco = "data/pulled/kazuhide-rect.reviewed.coco.json"
+
+# Omit view to pull all tasks with submitted annotations.
+# view = "Reviewed"
+completed_only = true
+annotation_policy = "error"
+
+map_bbox = "bbox"
+label_policy = "match_push_coco"
+
+image_datafield = "image"
+download_missing_images = true
+ls_cache = "once"
+dry_run = false

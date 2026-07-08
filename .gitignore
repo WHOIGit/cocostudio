@@ -18,3 +18,4 @@ ls_auth.*.toml
 configs/labelstudio/denticle.Type.Taxonomy.json
 configs/labelstudio/ls_auth.toml
 notes2.txt
+scratch/

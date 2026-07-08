@@ -1,0 +1,48 @@
+host = "https://ichthyolith.whoi.edu"
+project = "kazuhide DSDP-386 - RectangleLabels"
+label_config = "RectangleLabels/label-ui_rectanglelabels.kazuhide.xml"
+auth = "../ls_auth.toml"
+
+[labelstudio-tools]
+pk = "image"
+cache = "RAM"
+s3_https_suppress = true  # LS server needs https in storage endpoint_url; local boto3 only works with http for vast.whoi.edu
+
+[general]
+description = "Bounding-box review of Kazuhide's 3 DSDP-386 ichthyolith fullframes (RectangleLabels only, no segmentation)."
+task_sampling = "sequential"
+color = "#FF4C25"  # Red
+
+# The 3 fullframes are local (cocostudio/data/from_kazuhide/*_2d_contour.jpg).
+# `cocostudio push` stages them to this bucket/prefix before creating tasks, so
+# Label Studio only needs the storage below to mint presigned URLs (tasks are
+# imported by cocostudio, not synced from storage -> file_name_filter = "(?!)").
+[[storage]]
+type = "s3"
+mode = "source"
+title = "ichthyolith storage"
+bucket = "ichthyolith"
+endpoint_url = "https://vast.whoi.edu"
+bucket_prefix = "from_kazuhide_DSDP-386"
+presigned_urls = true
+presigned_urls_expiry = 15
+import_method = "tasks"
+file_name_filter = "(?!)"
+scan_all_subfolders = true
+
+[ml_backend]
+name = "SAM2Plus (ichthyolith)"
+backend_url = "https://mlbackend.brick.whoi.edu/sam2plus/ichthyolith/"
+interactive = true
+start_training_on_annotation_update = false
+annotation_prelabeling = false
+exclude_existing_annotations = true
+
+[ml_backend.extra_params]
+subpatching   = { patch_size = 1024 }
+postprocess   = { mask_size_threshold = 1, dilate = 0.05 }
+return_format = { type = "RectangleLabels" }
+
+[annotations]
+instructions = ""
+show_before_labeling = false
