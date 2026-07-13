@@ -9,8 +9,8 @@ description = "Push COCO predictions to Label Studio for correction and pull ref
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    #"coconut-crab @ git+https://github.com/WHOIGit/coconut-crab.git",
-    #"labelstudio-tools @ git+https://github.com/WHOIGit/labelstudio-tools.git",
+    "coconut-crab @ git+https://github.com/sbatchelder/coconut-crab.git",
+    "labelstudio-tools @ git+https://github.com/WHOIGit/labelstudio-tools.git",
     "numpy",
     "pillow",  # image dimensions in pull._image_size_from_disk
     "pycocotools",
